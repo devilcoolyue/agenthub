@@ -6,14 +6,23 @@ A local-first desktop dashboard that watches every action your AI coding agents
 take — Claude Code, Codex, and more — scores their risk, tracks their cost,
 and lets you clean up the dangerous configuration they accumulate.
 
-```
-docs/screenshots/activity.png   ← live event stream + risk score card
-docs/screenshots/sessions.png   ← 345 indexed sessions, by project
-docs/screenshots/cost.png       ← 7-day spend by agent, by model
-docs/screenshots/policy.png     ← 13 secret-in-rule findings, one-click removal
-```
+## Screenshots
 
-(Screenshots above are placeholders — drop your own PNGs there once you've run it.)
+### Activity
+
+![Live event stream and risk score card](assets/activity-monitor.png)
+
+### Sessions
+
+![Indexed sessions grouped by project](assets/sessions-browser.png)
+
+### Cost
+
+![7-day spend by agent and model](assets/cost-dashboard.png)
+
+### Policy
+
+![Secret-in-rule findings and one-click removal](assets/policy-hardening.png)
 
 ---
 
