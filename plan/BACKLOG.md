@@ -29,12 +29,14 @@ For the bigger picture, see [`ROADMAP.md`](ROADMAP.md).
 - [ ] Live Session Detail — currently SessionDetailView is a one-shot
       `get_session_events` call; subscribe to `agent-event` filtered by
       `session_id` and append in real time
-- [ ] Filter by tool name (`Read` / `Bash` / `Edit` / `Grep` / `WebFetch`)
+- [x] Filter by tool name — top-N most-frequent tool_use chips, derived
+      from the current event window; selected chip stays sticky.
 - [ ] FTS5 over `data->>'$.kind.summary'` for full-text search across
       events (Bash command body, file paths)
 - [ ] "Pin" an event to keep it visible while autoscroll continues
-- [ ] Hide `usage` rows by default (toggle in toolbar)
-- [ ] Click event → opens the source line in its session detail
+- [x] Hide `usage` rows by default — toolbar toggle defaults off.
+- [x] Click event → jumps to its session detail (session-level for now;
+      scrolling to the specific row in the timeline is still TODO).
 
 ---
 

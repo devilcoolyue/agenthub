@@ -167,7 +167,12 @@ function App() {
 
       <Tabs view={view} onView={setView} />
 
-      {view.type === "activity" && <ActivityView events={events} />}
+      {view.type === "activity" && (
+        <ActivityView
+          events={events}
+          onOpenSession={(id) => setView({ type: "session-detail", sessionId: id })}
+        />
+      )}
       {view.type === "sessions" && (
         <SessionsView
           key={`sessions-${refreshKey}`}
@@ -222,9 +227,19 @@ function Tabs({ view, onView }: { view: View; onView: (v: View) => void }) {
 
 /* ---------- Activity view ---------- */
 
-function ActivityView({ events }: { events: AgentEvent[] }) {
+const TOOL_CHIPS_MAX = 6;
+
+function ActivityView({
+  events,
+  onOpenSession,
+}: {
+  events: AgentEvent[];
+  onOpenSession: (sessionId: string) => void;
+}) {
   const [filterAgent, setFilterAgent] = useState<Agent | "all">("all");
   const [filterRisk, setFilterRisk] = useState<"all" | "med+" | "high">("all");
+  const [filterTool, setFilterTool] = useState<string>("all");
+  const [showUsage, setShowUsage] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -234,15 +249,36 @@ function ActivityView({ events }: { events: AgentEvent[] }) {
     }
   }, [events, autoScroll]);
 
+  // Tool chips: top-N most frequent tool names in the current window, plus
+  // whichever tool is currently selected (so it never disappears mid-session).
+  const toolOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const ev of events) {
+      if (ev.kind.type === "tool_use") {
+        counts.set(ev.kind.name, (counts.get(ev.kind.name) ?? 0) + 1);
+      }
+    }
+    const sorted = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, TOOL_CHIPS_MAX)
+      .map(([name]) => name);
+    if (filterTool !== "all" && !sorted.includes(filterTool)) sorted.push(filterTool);
+    return [{ v: "all", l: "all" }, ...sorted.map((n) => ({ v: n, l: n }))];
+  }, [events, filterTool]);
+
   const filtered = useMemo(
     () =>
       events.filter((ev) => {
         if (filterAgent !== "all" && ev.agent !== filterAgent) return false;
         if (filterRisk === "high" && riskLevel(ev.risk_tags) !== "high") return false;
         if (filterRisk === "med+" && riskLevel(ev.risk_tags) === "low") return false;
+        if (!showUsage && ev.kind.type === "usage") return false;
+        if (filterTool !== "all") {
+          if (ev.kind.type !== "tool_use" || ev.kind.name !== filterTool) return false;
+        }
         return true;
       }),
-    [events, filterAgent, filterRisk],
+    [events, filterAgent, filterRisk, filterTool, showUsage],
   );
 
   return (
@@ -268,6 +304,20 @@ function ActivityView({ events }: { events: AgentEvent[] }) {
           ]}
           onChange={(v) => setFilterRisk(v as "all" | "med+" | "high")}
         />
+        <FilterGroup
+          label="tool"
+          value={filterTool}
+          options={toolOptions}
+          onChange={setFilterTool}
+        />
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={showUsage}
+            onChange={(e) => setShowUsage(e.target.checked)}
+          />
+          show usage
+        </label>
         <label className="toggle">
           <input
             type="checkbox"
@@ -285,7 +335,7 @@ function ActivityView({ events }: { events: AgentEvent[] }) {
           </div>
         )}
         {filtered.map((ev, i) => (
-          <EventRow key={i} ev={ev} />
+          <EventRow key={i} ev={ev} onOpenSession={onOpenSession} />
         ))}
       </div>
     </>
@@ -1301,15 +1351,27 @@ function FilterGroup<T extends string>({
   );
 }
 
-function EventRow({ ev }: { ev: AgentEvent }) {
+function EventRow({
+  ev,
+  onOpenSession,
+}: {
+  ev: AgentEvent;
+  onOpenSession?: (sessionId: string) => void;
+}) {
   const lvl = riskLevel(ev.risk_tags);
   const { label: kindLabel, detail, kindCls } = renderKind(ev.kind);
   const ts = new Date(ev.timestamp).toLocaleTimeString("en-GB", { hour12: false });
   const isUsage = ev.kind.type === "usage";
   const usageDetail = ev.usage ? formatUsageDetail(ev.usage) : "";
   const displayDetail = isUsage ? usageDetail : detail;
+  const clickable = !!onOpenSession;
   return (
-    <div className={`row risk-${lvl} ${isUsage ? "row-usage" : ""}`}>
+    <div
+      className={`row risk-${lvl} ${isUsage ? "row-usage" : ""} ${clickable ? "row-clickable" : ""}`}
+      onClick={clickable ? () => onOpenSession!(ev.session_id) : undefined}
+      title={clickable ? "Open session detail" : undefined}
+      role={clickable ? "button" : undefined}
+    >
       <span className="ts">{ts}</span>
       <span className={`agent agent-${ev.agent}`}>{ev.agent}</span>
       <span className={`kind ${kindCls}`}>{kindLabel}</span>

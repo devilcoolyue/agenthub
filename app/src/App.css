@@ -853,6 +853,10 @@ html, body, #root {
   background: var(--bg-row-hover);
 }
 
+.row-clickable {
+  cursor: pointer;
+}
+
 .row.risk-high { background: var(--bg-risk-high); }
 .row.risk-high:hover { background: rgba(248, 81, 73, 0.14); }
 .row.risk-med { background: var(--bg-risk-med); }
