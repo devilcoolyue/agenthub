@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Per-user Claude Code state (accumulates allow rules; not for sharing)
+.claude/settings.local.json
+
+# Per-user oh-my-codex plans
+.omx/
+
+# AgentHub config-edit backups (created by Policy view writes)
+*.agenthub.bak.*
+*.agenthub-tmp
+
+# Test SQLite DBs / WAL files if any get checked into the repo by accident
+events.db
+events.db-wal
+events.db-shm
+
+# Editor / IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Logs
+*.log

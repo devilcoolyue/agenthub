@@ -1,0 +1,510 @@
+use crate::agent::{Agent, AgentEvent, EventKind};
+use anyhow::{Context, Result};
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::path::Path;
+use std::sync::Mutex;
+
+/// Stable per-event fingerprint for idempotent backfill / dedup.
+/// First 16 bytes of sha256 over a normalized representation. ~3.4×10^38 keyspace,
+/// collision in practice negligible for our scale.
+pub fn event_hash(ev: &AgentEvent) -> String {
+    let mut h = Sha256::new();
+    let agent = match ev.agent {
+        Agent::ClaudeCode => "claude-code",
+        Agent::Codex => "codex",
+    };
+    h.update(agent.as_bytes());
+    h.update(b"|");
+    h.update(ev.session_id.as_bytes());
+    h.update(b"|");
+    h.update(ev.timestamp.to_rfc3339().as_bytes());
+    h.update(b"|");
+    match &ev.kind {
+        EventKind::SessionStart { model, version } => {
+            h.update(b"session_start|");
+            h.update(model.as_deref().unwrap_or("").as_bytes());
+            h.update(b"|");
+            h.update(version.as_deref().unwrap_or("").as_bytes());
+        }
+        EventKind::UserPrompt { text } => {
+            h.update(b"user_prompt|");
+            h.update(text.as_bytes());
+        }
+        EventKind::AssistantThinking => h.update(b"assistant_thinking"),
+        EventKind::AssistantText { text } => {
+            h.update(b"assistant_text|");
+            h.update(text.as_bytes());
+        }
+        EventKind::ToolUse { name, summary, .. } => {
+            h.update(b"tool_use|");
+            h.update(name.as_bytes());
+            h.update(b"|");
+            h.update(summary.as_bytes());
+        }
+        EventKind::ToolResult { ok, summary } => {
+            h.update(if *ok { b"tool_result_ok|".as_slice() } else { b"tool_result_err|".as_slice() });
+            h.update(summary.as_bytes());
+        }
+        EventKind::System { text } => {
+            h.update(b"system|");
+            h.update(text.as_bytes());
+        }
+        EventKind::Usage => {
+            h.update(b"usage|");
+            if let Some(u) = &ev.usage {
+                h.update(
+                    format!(
+                        "{}|{}|{}|{}",
+                        u.input_tokens, u.cache_read_tokens, u.output_tokens, u.reasoning_tokens
+                    )
+                    .as_bytes(),
+                );
+            }
+        }
+        EventKind::Other { tag } => {
+            h.update(b"other|");
+            h.update(tag.as_bytes());
+        }
+    }
+    let bytes = h.finalize();
+    let mut out = String::with_capacity(32);
+    for b in &bytes[..16] {
+        out.push_str(&format!("{:02x}", b));
+    }
+    out
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionSummary {
+    pub session_id: String,
+    pub agent: String,
+    pub cwd: Option<String>,
+    pub start_ts: String,
+    pub end_ts: String,
+    pub event_count: i64,
+    pub high_risk_count: i64,
+    pub tool_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionCategory {
+    pub cwd: Option<String>,
+    pub session_count: i64,
+    pub high_risk_session_count: i64,
+    pub event_count: i64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct SessionsFilter {
+    pub cwd: Option<String>,
+    pub query: Option<String>,
+    pub high_risk_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailyCost {
+    pub day: String,             // YYYY-MM-DD local
+    pub agent: String,
+    pub input_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_micros: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelCost {
+    pub model: String,
+    pub input_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_micros: i64,
+}
+
+const SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent       TEXT NOT NULL,
+    session_id  TEXT NOT NULL,
+    timestamp   TEXT NOT NULL,
+    risk_high   INTEGER NOT NULL DEFAULT 0,
+    data        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_id_desc ON events(id DESC);
+CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
+CREATE INDEX IF NOT EXISTS idx_events_agent_ts ON events(agent, timestamp);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id      TEXT PRIMARY KEY,
+    agent           TEXT NOT NULL,
+    cwd             TEXT,
+    start_ts        TEXT NOT NULL,
+    end_ts          TEXT NOT NULL,
+    event_count     INTEGER NOT NULL DEFAULT 0,
+    tool_count      INTEGER NOT NULL DEFAULT 0,
+    high_risk_count INTEGER NOT NULL DEFAULT 0,
+    cost_micros     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_end_ts ON sessions(end_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_cwd ON sessions(cwd);
+"#;
+
+/// Add columns / indexes if missing (idempotent — ALTER errors are ignored).
+fn migrate(conn: &Connection) {
+    let _ = conn.execute("ALTER TABLE events ADD COLUMN model TEXT", []);
+    for col in &[
+        "input_tokens",
+        "cache_creation_tokens",
+        "cache_read_tokens",
+        "output_tokens",
+        "cost_micros",
+    ] {
+        let _ = conn.execute(
+            &format!("ALTER TABLE events ADD COLUMN {} INTEGER NOT NULL DEFAULT 0", col),
+            [],
+        );
+    }
+    let _ = conn.execute("ALTER TABLE events ADD COLUMN event_hash TEXT", []);
+    let _ = conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_events_cost ON events(timestamp) WHERE cost_micros > 0;
+         CREATE UNIQUE INDEX IF NOT EXISTS idx_events_hash ON events(event_hash) WHERE event_hash IS NOT NULL;",
+    );
+
+    // If sessions table is empty but events has rows, rebuild it once.
+    let sessions_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))
+        .unwrap_or(0);
+    let events_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM events", [], |r| r.get(0))
+        .unwrap_or(0);
+    if sessions_count == 0 && events_count > 0 {
+        let _ = conn.execute_batch(
+            r#"
+            INSERT INTO sessions (session_id, agent, cwd, start_ts, end_ts, event_count, tool_count, high_risk_count, cost_micros)
+            SELECT
+                session_id,
+                agent,
+                MAX(json_extract(data, '$.cwd')) AS cwd,
+                MIN(timestamp) AS start_ts,
+                MAX(timestamp) AS end_ts,
+                COUNT(*) AS event_count,
+                SUM(CASE WHEN json_extract(data, '$.kind.type') = 'tool_use' THEN 1 ELSE 0 END) AS tool_count,
+                SUM(risk_high) AS high_risk_count,
+                SUM(cost_micros) AS cost_micros
+            FROM events
+            GROUP BY session_id;
+            "#,
+        );
+    }
+}
+
+pub struct Db {
+    conn: Mutex<Connection>,
+}
+
+impl Db {
+    pub fn open(path: &Path) -> Result<Self> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        let conn = Connection::open(path).with_context(|| format!("open db {}", path.display()))?;
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+        conn.execute_batch(SCHEMA)?;
+        migrate(&conn);
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
+    }
+
+    /// Insert event; returns true if a new row was added, false if the
+    /// event hash collided with an existing row.
+    pub fn insert(&self, ev: &AgentEvent) -> Result<bool> {
+        let data = serde_json::to_string(ev)?;
+        let hash = event_hash(ev);
+        let risk_high = ev
+            .risk_tags
+            .iter()
+            .any(|t| t == "shell-dangerous" || t == "secret-path") as i32;
+        let agent = match ev.agent {
+            Agent::ClaudeCode => "claude-code",
+            Agent::Codex => "codex",
+        };
+        let ts = ev.timestamp.to_rfc3339();
+        let (model, input_t, cache_create_t, cache_read_t, output_t, cost) = match &ev.usage {
+            Some(u) => (
+                u.model.clone(),
+                u.input_tokens as i64,
+                u.cache_creation_tokens as i64,
+                u.cache_read_tokens as i64,
+                (u.output_tokens + u.reasoning_tokens) as i64,
+                u.cost_micros as i64,
+            ),
+            None => (None, 0, 0, 0, 0, 0),
+        };
+        let conn = self.conn.lock().unwrap();
+        let changes = conn.execute(
+            "INSERT OR IGNORE INTO events
+                (agent, session_id, timestamp, risk_high, data,
+                 model, input_tokens, cache_creation_tokens, cache_read_tokens, output_tokens, cost_micros,
+                 event_hash)
+             VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?)",
+            params![
+                agent, ev.session_id, ts, risk_high, data,
+                model, input_t, cache_create_t, cache_read_t, output_t, cost,
+                hash
+            ],
+        )?;
+        if changes > 0 {
+            let tool_inc = matches!(ev.kind, EventKind::ToolUse { .. }) as i64;
+            // Upsert session aggregate. cwd uses prefer-non-null;
+            // start/end widen monotonically.
+            conn.execute(
+                r#"
+                INSERT INTO sessions
+                    (session_id, agent, cwd, start_ts, end_ts,
+                     event_count, tool_count, high_risk_count, cost_micros)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    cwd = CASE WHEN excluded.cwd IS NOT NULL THEN excluded.cwd ELSE sessions.cwd END,
+                    start_ts = CASE WHEN excluded.start_ts < sessions.start_ts THEN excluded.start_ts ELSE sessions.start_ts END,
+                    end_ts   = CASE WHEN excluded.end_ts > sessions.end_ts   THEN excluded.end_ts   ELSE sessions.end_ts   END,
+                    event_count     = sessions.event_count + 1,
+                    tool_count      = sessions.tool_count + excluded.tool_count,
+                    high_risk_count = sessions.high_risk_count + excluded.high_risk_count,
+                    cost_micros     = sessions.cost_micros + excluded.cost_micros
+                "#,
+                params![
+                    ev.session_id,
+                    agent,
+                    ev.cwd,
+                    ts,
+                    ts,
+                    tool_inc,
+                    risk_high,
+                    cost,
+                ],
+            )?;
+        }
+        Ok(changes > 0)
+    }
+
+    /// Compute hashes for legacy rows where `event_hash` is NULL.
+    /// Returns the number of rows updated.
+    pub fn backfill_hashes(&self) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, data FROM events WHERE event_hash IS NULL")?;
+        let rows: Vec<(i64, String)> = stmt
+            .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?
+            .filter_map(|r| r.ok())
+            .collect();
+        drop(stmt);
+        let tx = conn.unchecked_transaction()?;
+        let mut updated = 0usize;
+        for (id, data) in rows {
+            if let Ok(ev) = serde_json::from_str::<AgentEvent>(&data) {
+                let h = event_hash(&ev);
+                // unique constraint may reject if a dup already exists with hash; in that
+                // case delete this orphan row instead so we converge on a clean state.
+                match tx.execute("UPDATE events SET event_hash = ? WHERE id = ?", params![h, id]) {
+                    Ok(_) => updated += 1,
+                    Err(_) => {
+                        let _ = tx.execute("DELETE FROM events WHERE id = ?", params![id]);
+                    }
+                }
+            }
+        }
+        tx.commit()?;
+        Ok(updated)
+    }
+
+    pub fn recent(&self, limit: usize) -> Result<Vec<AgentEvent>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare("SELECT data FROM events ORDER BY id DESC LIMIT ?")?;
+        let mut rows = stmt.query(params![limit as i64])?;
+        let mut out: Vec<AgentEvent> = Vec::new();
+        while let Some(row) = rows.next()? {
+            let s: String = row.get(0)?;
+            if let Ok(ev) = serde_json::from_str::<AgentEvent>(&s) {
+                out.push(ev);
+            }
+        }
+        out.reverse(); // return ascending by time
+        Ok(out)
+    }
+
+    pub fn count(&self) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let n: i64 = conn.query_row("SELECT COUNT(*) FROM events", [], |r| r.get(0))?;
+        Ok(n)
+    }
+
+    pub fn list_sessions(
+        &self,
+        filter: &SessionsFilter,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<SessionSummary>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT session_id, agent, cwd, start_ts, end_ts,
+                   event_count, high_risk_count, tool_count
+            FROM sessions
+            WHERE (?1 IS NULL OR cwd = ?1)
+              AND (?2 = 0 OR high_risk_count > 0)
+              AND (?3 IS NULL
+                   OR LOWER(IFNULL(cwd,'')) LIKE '%' || LOWER(?3) || '%'
+                   OR LOWER(session_id)     LIKE '%' || LOWER(?3) || '%')
+            ORDER BY end_ts DESC
+            LIMIT ?4 OFFSET ?5
+            "#,
+        )?;
+        let cwd_param = filter.cwd.as_deref();
+        let high_only = if filter.high_risk_only { 1i64 } else { 0i64 };
+        let query_param = filter.query.as_deref();
+        let rows = stmt.query_map(
+            params![cwd_param, high_only, query_param, limit as i64, offset as i64],
+            |r| {
+                Ok(SessionSummary {
+                    session_id: r.get(0)?,
+                    agent: r.get(1)?,
+                    cwd: r.get::<_, Option<String>>(2)?,
+                    start_ts: r.get(3)?,
+                    end_ts: r.get(4)?,
+                    event_count: r.get(5)?,
+                    high_risk_count: r.get::<_, Option<i64>>(6)?.unwrap_or(0),
+                    tool_count: r.get::<_, Option<i64>>(7)?.unwrap_or(0),
+                })
+            },
+        )?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_session_categories(&self) -> Result<Vec<SessionCategory>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+                cwd,
+                COUNT(*) AS session_count,
+                SUM(CASE WHEN high_risk_count > 0 THEN 1 ELSE 0 END) AS high_risk_session_count,
+                SUM(event_count) AS event_count
+            FROM sessions
+            GROUP BY cwd
+            ORDER BY event_count DESC
+            "#,
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(SessionCategory {
+                cwd: r.get::<_, Option<String>>(0)?,
+                session_count: r.get::<_, i64>(1)?,
+                high_risk_session_count: r.get::<_, Option<i64>>(2)?.unwrap_or(0),
+                event_count: r.get::<_, Option<i64>>(3)?.unwrap_or(0),
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Per-day per-agent cost rollup for the last `days` local days,
+    /// ordered DESC (today first).
+    pub fn daily_cost(&self, days: usize) -> Result<Vec<DailyCost>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+                DATE(timestamp, 'localtime') AS day,
+                agent,
+                SUM(input_tokens),
+                SUM(cache_read_tokens),
+                SUM(cache_creation_tokens),
+                SUM(output_tokens),
+                SUM(cost_micros)
+            FROM events
+            WHERE cost_micros > 0
+              AND DATE(timestamp, 'localtime') >= DATE('now', 'localtime', '-' || ? || ' days')
+            GROUP BY day, agent
+            ORDER BY day DESC, agent
+            "#,
+        )?;
+        let rows = stmt.query_map(params![days as i64], |r| {
+            Ok(DailyCost {
+                day: r.get(0)?,
+                agent: r.get(1)?,
+                input_tokens: r.get::<_, Option<i64>>(2)?.unwrap_or(0),
+                cache_read_tokens: r.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                cache_creation_tokens: r.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                output_tokens: r.get::<_, Option<i64>>(5)?.unwrap_or(0),
+                cost_micros: r.get::<_, Option<i64>>(6)?.unwrap_or(0),
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Cost rollup by model over the last `days` local days.
+    pub fn model_cost(&self, days: usize) -> Result<Vec<ModelCost>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+                COALESCE(model, 'unknown') AS m,
+                SUM(input_tokens),
+                SUM(cache_read_tokens),
+                SUM(cache_creation_tokens),
+                SUM(output_tokens),
+                SUM(cost_micros)
+            FROM events
+            WHERE cost_micros > 0
+              AND DATE(timestamp, 'localtime') >= DATE('now', 'localtime', '-' || ? || ' days')
+            GROUP BY m
+            ORDER BY SUM(cost_micros) DESC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![days as i64], |r| {
+            Ok(ModelCost {
+                model: r.get(0)?,
+                input_tokens: r.get::<_, Option<i64>>(1)?.unwrap_or(0),
+                cache_read_tokens: r.get::<_, Option<i64>>(2)?.unwrap_or(0),
+                cache_creation_tokens: r.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                output_tokens: r.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                cost_micros: r.get::<_, Option<i64>>(5)?.unwrap_or(0),
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn session_events(&self, session_id: &str) -> Result<Vec<AgentEvent>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare("SELECT data FROM events WHERE session_id = ? ORDER BY id ASC")?;
+        let mut rows = stmt.query(params![session_id])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            let s: String = row.get(0)?;
+            if let Ok(ev) = serde_json::from_str::<AgentEvent>(&s) {
+                out.push(ev);
+            }
+        }
+        Ok(out)
+    }
+}
