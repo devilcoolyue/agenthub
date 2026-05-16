@@ -26,18 +26,17 @@ is the "first 10 seconds" experience and the release pipeline.
 
 ### Must-do before public release
 
-- [ ] **git init** the repo + first commit. Currently AgentHub isn't versioned.
-- [ ] **`LICENSE`** file (MIT).
-- [ ] **Screenshots / GIF** for the README hero. Record:
-    1. Activity stream with a live `Bash(curl ... | sh)` getting flagged
-    2. Risk Score card going from green → red as a `cat .env` happens
-    3. Sessions sidebar showing project distribution
-    4. Cost dashboard with 7-day stacked bar
-    5. Policy view showing 13 `secret-in-rule` findings + batch-remove modal
-- [ ] **First-launch onboarding banner** — explain what's happening
-  ("Indexing your AI history… 1,234 events imported"). Currently a brand-
-  new user opens an empty window with no context.
-- [ ] **macOS `.dmg` release** via GitHub Actions. Tag-driven.
+- [x] **git init** the repo + first commit. Pushed to
+      `github.com/devilcoolyue/agenthub`.
+- [x] **`LICENSE`** file (MIT).
+- [x] **Screenshots** for the README hero (`assets/*.png`). Still missing
+      a demo GIF that walks Activity → Risk spike → Policy → batch remove.
+- [x] **First-launch onboarding banner** — when the events table is empty
+      we auto-trigger backfill and surface a "Indexing your AI history…"
+      banner so a brand-new user immediately sees something happening.
+- [x] **macOS `.dmg` release** via GitHub Actions, tag-driven
+      (`.github/workflows/release.yml`). Builds both `aarch64-apple-darwin`
+      and `x86_64-apple-darwin`, attaches DMGs to the GitHub Release.
 - [ ] **landing copy** for the README first screen (text taken from the PRD
   spread-strategy section).
 

@@ -33,6 +33,7 @@ function App() {
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [view, setView] = useState<View>({ type: "activity" });
   const [backfill, setBackfill] = useState<BackfillProgress | null>(null);
+  const [isFirstRun, setIsFirstRun] = useState(false);
   // bumps each time backfill completes so views requery
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -44,8 +45,11 @@ function App() {
         setBackfill(e.payload);
         if (e.payload.phase === "done" || e.payload.phase === "failed") {
           setRefreshKey((k) => k + 1);
-          // auto-dismiss after 5s
-          setTimeout(() => setBackfill(null), 5000);
+          // auto-dismiss after 5s, then clear the first-run flag too
+          setTimeout(() => {
+            setBackfill(null);
+            setIsFirstRun(false);
+          }, 5000);
         }
       });
       if (cancelled) u();
@@ -54,6 +58,28 @@ function App() {
     return () => {
       cancelled = true;
       if (un) un();
+    };
+  }, []);
+
+  // First-launch auto-backfill: if the DB is empty, kick off an import so a
+  // brand-new user sees their history populating instead of an empty window.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const count = await invoke<number>("get_event_count");
+        if (cancelled || count > 0) return;
+        setIsFirstRun(true);
+        setBackfill({ phase: "started" });
+        await invoke("start_backfill");
+      } catch (err) {
+        if (!cancelled) {
+          setBackfill({ phase: "failed", error: String(err) });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -131,7 +157,13 @@ function App() {
         <RiskCard risk={risk} />
       </header>
 
-      {backfill && <BackfillBanner p={backfill} onDismiss={() => setBackfill(null)} />}
+      {backfill && (
+        <BackfillBanner
+          p={backfill}
+          firstRun={isFirstRun}
+          onDismiss={() => setBackfill(null)}
+        />
+      )}
 
       <Tabs view={view} onView={setView} />
 
@@ -1143,25 +1175,33 @@ function PolicyRow({
 
 function BackfillBanner({
   p,
+  firstRun,
   onDismiss,
 }: {
   p: BackfillProgress;
+  firstRun: boolean;
   onDismiss: () => void;
 }) {
   let label = "";
   let cls = "info";
   switch (p.phase) {
     case "started":
-      label = "Backfill starting…";
+      label = firstRun
+        ? "Welcome to AgentHub. Indexing your AI history from ~/.claude and ~/.codex…"
+        : "Backfill starting…";
       break;
     case "hashes_migrated":
       label = `Indexed ${p.migrated} existing rows. Scanning sources…`;
       break;
     case "scanning":
-      label = `Scanning… ${p.scanned.toLocaleString()} events processed · ${p.inserted.toLocaleString()} new imported`;
+      label = firstRun
+        ? `Indexing your AI history… ${p.scanned.toLocaleString()} events processed · ${p.inserted.toLocaleString()} imported`
+        : `Scanning… ${p.scanned.toLocaleString()} events processed · ${p.inserted.toLocaleString()} new imported`;
       break;
     case "done":
-      label = `Backfill complete — imported ${p.inserted.toLocaleString()} new events from ${p.scanned.toLocaleString()} scanned (${p.hashes_migrated.toLocaleString()} legacy rows hashed).`;
+      label = firstRun
+        ? `Ready. Imported ${p.inserted.toLocaleString()} events from your AI history — explore the tabs above.`
+        : `Backfill complete — imported ${p.inserted.toLocaleString()} new events from ${p.scanned.toLocaleString()} scanned (${p.hashes_migrated.toLocaleString()} legacy rows hashed).`;
       cls = "success";
       break;
     case "failed":

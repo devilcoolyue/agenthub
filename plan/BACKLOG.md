@@ -9,16 +9,16 @@ For the bigger picture, see [`ROADMAP.md`](ROADMAP.md).
 
 ## Release (Phase 1 — do first)
 
-- [ ] `git init` and first commit; push to a new GitHub repo
-- [ ] Add `LICENSE` (MIT)
-- [ ] Add `.gitignore` covering `target/`, `node_modules/`, `dist/`,
+- [x] `git init` and first commit; push to a new GitHub repo
+- [x] Add `LICENSE` (MIT)
+- [x] Add `.gitignore` covering `target/`, `node_modules/`, `dist/`,
       `*.bak.*`, `events.db*`
 - [ ] Record demo GIF: Activity → Risk spike → Policy → batch remove. ~30s.
-- [ ] Capture 4 PNG screenshots under `docs/screenshots/` (paths already
-      referenced from README)
-- [ ] GitHub Actions: `macos-latest` builds `.dmg` on tag push
-- [ ] First-launch banner: "Indexing N JSONL files…" — trigger backfill
-      automatically if `events` table is empty
+- [x] Capture 4 PNG screenshots under `assets/` (referenced from README)
+- [x] GitHub Actions: `macos-latest` builds `.dmg` on tag push
+      (`.github/workflows/release.yml`, both arm64 + x64)
+- [x] First-launch banner: "Indexing your AI history…" — backfill kicks
+      off automatically when the `events` table is empty
 - [ ] Landing copy at top of README (hero + 3 value props from PRD §12)
 - [ ] Optional: Tauri auto-updater (with signed releases)
 
