@@ -209,4 +209,4 @@ MVP 已覆盖：
 
 ## License
 
-MIT。发布前需要补充正式的 `LICENSE` 文件。
+MIT — 详见 [`LICENSE`](LICENSE)。

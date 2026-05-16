@@ -169,4 +169,4 @@ Useful files for orientation:
 
 ## License
 
-MIT (TODO: add `LICENSE` file before publishing).
+MIT — see [`LICENSE`](LICENSE).
