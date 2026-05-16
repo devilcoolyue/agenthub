@@ -7,6 +7,9 @@
 # Per-user oh-my-codex plans
 .omx/
 
+# Local Codex/agent instructions
+AGENTS.md
+
 # AgentHub config-edit backups (created by Policy view writes)
 *.agenthub.bak.*
 *.agenthub-tmp
