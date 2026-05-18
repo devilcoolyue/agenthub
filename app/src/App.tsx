@@ -19,7 +19,6 @@ import type {
   ModelCost,
   ModelUsage,
   PolicyItem,
-  RiskSummary,
   SessionCategory,
   SessionSummary,
   SessionsFilter,
@@ -44,13 +43,6 @@ import {
 } from "./utils";
 import { useAnimatedNumber, useNow } from "./hooks";
 import {
-  formatUsageDetail,
-  fullEventText,
-  renderKind,
-  renderMarkdownLite,
-  shortModel,
-} from "./eventRender";
-import {
   type RetentionDays,
   type Settings,
   type SettingsContextValue,
@@ -61,20 +53,18 @@ import {
   saveSettings,
   useSettings,
 } from "./settings";
+import { BackfillBanner } from "./components/BackfillBanner";
+import { EventRow } from "./components/EventRow";
+import { RiskCard } from "./components/RiskCard";
+import { Segmented } from "./components/Segmented";
+import { Stat } from "./components/Stat";
+import { type View, Tabs } from "./components/Tabs";
+import { ToggleSwitch } from "./components/ToggleSwitch";
 import claudeIcon from "./assets/claude.svg";
 import codexIcon from "./assets/codex.svg";
 import "./App.css";
 
 const MAX_EVENTS = 500;
-
-type View =
-  | { type: "activity" }
-  | { type: "dashboard" }
-  | { type: "sessions" }
-  | { type: "session-detail"; sessionId: string }
-  | { type: "cost" }
-  | { type: "policy" }
-  | { type: "settings" };
 
 function App() {
   const [settings, setSettingsState] = useState<Settings>(() => loadSettings());
@@ -341,58 +331,6 @@ function App() {
     </SettingsContext.Provider>
   );
 }
-
-function Tabs({ view, onView }: { view: View; onView: (v: View) => void }) {
-  const { t } = useSettings();
-  const tab: TabKey | "settings" =
-    view.type === "session-detail" ? "sessions" : view.type;
-  return (
-    <nav className="tabs">
-      <button
-        className={`tab ${tab === "activity" ? "active" : ""}`}
-        onClick={() => onView({ type: "activity" })}
-      >
-        {t("tab.activity")}
-      </button>
-      <button
-        className={`tab ${tab === "dashboard" ? "active" : ""}`}
-        onClick={() => onView({ type: "dashboard" })}
-      >
-        {t("tab.dashboard")}
-      </button>
-      <button
-        className={`tab ${tab === "sessions" ? "active" : ""}`}
-        onClick={() => onView({ type: "sessions" })}
-      >
-        {t("tab.sessions")}
-      </button>
-      <button
-        className={`tab ${tab === "cost" ? "active" : ""}`}
-        onClick={() => onView({ type: "cost" })}
-      >
-        {t("tab.cost")}
-      </button>
-      <button
-        className={`tab ${tab === "policy" ? "active" : ""}`}
-        onClick={() => onView({ type: "policy" })}
-      >
-        {t("tab.policy")}
-      </button>
-      <span className="tabs-spacer" />
-      <button
-        className={`tab tab-settings ${tab === "settings" ? "active" : ""}`}
-        onClick={() => onView({ type: "settings" })}
-        title={t("tab.settings")}
-        aria-label={t("tab.settings")}
-      >
-        <span className="tab-gear" aria-hidden>⚙</span>
-        {t("tab.settings")}
-      </button>
-    </nav>
-  );
-}
-
-/* ---------- Activity view ---------- */
 
 function ActivityView({
   events,
@@ -2503,8 +2441,6 @@ function PolicyRow({
   );
 }
 
-/* ---------- Backfill banner ---------- */
-
 /* ---------- Settings view ---------- */
 
 /** Convert internal micros-per-MTok to a USD string for display. Up to 4
@@ -3444,295 +3380,6 @@ function SettingsLayout({ sections }: { sections: SettingsCategory[] }) {
         ))}
       </nav>
       <div className="settings-pane">{current?.content}</div>
-    </div>
-  );
-}
-
-function BackfillBanner({
-  p,
-  firstRun,
-  onDismiss,
-}: {
-  p: BackfillProgress;
-  firstRun: boolean;
-  onDismiss: () => void;
-}) {
-  const { t } = useSettings();
-  let label = "";
-  let cls = "info";
-  switch (p.phase) {
-    case "started":
-      label = firstRun ? t("bf.welcome") : t("bf.starting");
-      break;
-    case "hashes_migrated":
-      label = t("bf.migrated", { n: p.migrated });
-      break;
-    case "scanning":
-      label = firstRun
-        ? t("bf.scanningFirst", {
-            scanned: p.scanned.toLocaleString(),
-            inserted: p.inserted.toLocaleString(),
-          })
-        : t("bf.scanning", {
-            scanned: p.scanned.toLocaleString(),
-            inserted: p.inserted.toLocaleString(),
-          });
-      break;
-    case "done":
-      label = firstRun
-        ? t("bf.readyFirst", { n: p.inserted.toLocaleString() })
-        : t("bf.done", {
-            inserted: p.inserted.toLocaleString(),
-            scanned: p.scanned.toLocaleString(),
-            hashed: p.hashes_migrated.toLocaleString(),
-          });
-      cls = "success";
-      break;
-    case "failed":
-      label = t("bf.failed", { error: p.error });
-      cls = "error";
-      break;
-  }
-  const showSpinner =
-    p.phase === "started" ||
-    p.phase === "hashes_migrated" ||
-    p.phase === "fts_indexed" ||
-    p.phase === "scanning";
-  return (
-    <div className={`backfill-banner ${cls}`}>
-      {showSpinner && <span className="bf-spinner" />}
-      <span className="bf-msg">{label}</span>
-      {(p.phase === "done" || p.phase === "failed") && (
-        <button className="bf-dismiss" onClick={onDismiss}>
-          ×
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ---------- shared components ---------- */
-
-function RiskCard({ risk }: { risk: RiskSummary }) {
-  const { t } = useSettings();
-  const levelLabel = {
-    low: t("risk.low"),
-    med: t("risk.med"),
-    high: t("risk.high"),
-  }[risk.level];
-  const dash = 2 * Math.PI * 28;
-  const progress = (risk.score / 100) * dash;
-  return (
-    <div className={`risk-card level-${risk.level}`}>
-      <div className="risk-ring">
-        <svg width="76" height="76" viewBox="0 0 76 76">
-          <circle cx="38" cy="38" r="28" stroke="rgba(255,255,255,0.06)" strokeWidth="6" fill="none" />
-          <circle
-            cx="38" cy="38" r="28"
-            stroke="currentColor" strokeWidth="6" fill="none"
-            strokeLinecap="round"
-            strokeDasharray={`${progress} ${dash}`}
-            transform="rotate(-90 38 38)"
-            style={{ transition: "stroke-dasharray 300ms ease" }}
-          />
-        </svg>
-        <div className="risk-score-num">{risk.score}</div>
-      </div>
-      <div className="risk-meta">
-        <div className="risk-level-label">{levelLabel}</div>
-        <div className="risk-window">{t("risk.window", { n: risk.windowSize })}</div>
-        {risk.findings.length === 0 ? (
-          <div className="risk-clean">{t("risk.clean")}</div>
-        ) : (
-          <div className="risk-findings">
-            {risk.findings.slice(0, 3).map((f) => (
-              <div key={f.tag} className={`finding tag-${f.tag}`}>
-                <span className="finding-tag">{f.tag}</span>
-                <span className="finding-count">{f.count}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, accent }: { label: string; value: number; accent?: string }) {
-  return (
-    <div className="stat">
-      <div className={`stat-value ${accent ?? ""}`}>{value}</div>
-      <div className="stat-label">{label}</div>
-    </div>
-  );
-}
-
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-  ariaLabel,
-}: {
-  value: T;
-  options: { v: T; l: string }[];
-  onChange: (v: T) => void;
-  ariaLabel?: string;
-}) {
-  return (
-    <div className="segmented" role="group" aria-label={ariaLabel}>
-      {options.map((o) => (
-        <button
-          key={o.v}
-          type="button"
-          className={`seg ${value === o.v ? "active" : ""}`}
-          onClick={() => onChange(o.v)}
-          aria-pressed={value === o.v}
-        >
-          {o.l}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ToggleSwitch({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`toggle-switch ${checked ? "on" : ""}`}
-      onClick={() => onChange(!checked)}
-      role="switch"
-      aria-checked={checked}
-    >
-      <span className="toggle-track" />
-      <span className="toggle-label">{label}</span>
-    </button>
-  );
-}
-
-function EventRow({
-  ev,
-  model,
-  onOpenSession,
-  expanded,
-  onToggleExpand,
-}: {
-  ev: AgentEvent;
-  model?: string | null;
-  onOpenSession?: (sessionId: string) => void;
-  expanded?: boolean;
-  onToggleExpand?: () => void;
-}) {
-  const { settings } = useSettings();
-  const lvl = riskLevel(ev.risk_tags);
-  const { label: kindLabel, detail, kindCls } = renderKind(ev.kind);
-  const ts = new Date(ev.timestamp).toLocaleTimeString("en-GB", { hour12: false });
-  const isUsage = ev.kind.type === "usage";
-  const usageCost = ev.usage ? computeCostMicros(ev.usage, settings.customPricing) : 0;
-  const usageDetail = ev.usage ? formatUsageDetail(ev.usage, usageCost) : "";
-  const displayDetail = isUsage ? usageDetail : detail;
-  const clickable = !!onOpenSession;
-  // Prefer the explicit usage model on the row itself (always authoritative);
-  // otherwise fall back to the active model threaded through from ActivityView.
-  const shownModel = ev.usage?.model ?? model ?? null;
-
-  const fullText = fullEventText(ev.kind);
-  // A row is expandable when its full text has content the single-line detail
-  // can't show — either a newline, or it's meaningfully longer than the
-  // one-line summary already in the column.
-  const expandable =
-    !!onToggleExpand &&
-    fullText.length > 0 &&
-    (fullText.includes("\n") || fullText.length > displayDetail.length + 8);
-
-  // Click priority: expand inline when there's more to see, else fall back
-  // to opening the session detail. This keeps the row click useful for
-  // every row but stops the jarring page jump on every interaction.
-  const onRowClick = expandable
-    ? () => onToggleExpand?.()
-    : clickable
-    ? () => onOpenSession!(ev.session_id)
-    : undefined;
-  const rowTitle = expandable
-    ? (expanded ? "Collapse" : "Click to expand")
-    : clickable
-    ? "Open session detail"
-    : undefined;
-  const rowInteractive = !!onRowClick;
-
-  return (
-    <div className={`event-row-wrap${expanded ? " is-expanded" : ""}`}>
-      <div
-        className={`row risk-${lvl} ${isUsage ? "row-usage" : ""} ${rowInteractive ? "row-clickable" : ""}`}
-        onClick={onRowClick}
-        title={rowTitle}
-        role={rowInteractive ? "button" : undefined}
-      >
-        <span className="ts">{ts}</span>
-        <span className={`agent agent-${ev.agent}`}>{ev.agent}</span>
-        <span className={`kind ${kindCls}`}>{kindLabel}</span>
-        <span className="detail" title={displayDetail}>{displayDetail}</span>
-        <span className="row-expand">
-          {expandable && (
-            <button
-              type="button"
-              className="row-expand-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleExpand?.();
-              }}
-              aria-label={expanded ? "Collapse content" : "Expand content"}
-              aria-expanded={!!expanded}
-              title={expanded ? "Collapse" : "Expand"}
-            >
-              {expanded ? "▾" : "▸"}
-            </button>
-          )}
-        </span>
-        <span className="model" title={shownModel ?? ""}>
-          {shownModel ? shortModel(shownModel) : "—"}
-        </span>
-        <span className="cwd" title={ev.cwd ?? ""}>{shortenCwd(ev.cwd)}</span>
-        <span className="risk">
-          {ev.usage && !isUsage ? (
-            <span className="cost-pill">{fmtUSD(usageCost)}</span>
-          ) : ev.risk_tags.length === 0 ? (
-            <span className="dot dot-low">·</span>
-          ) : (
-            <>
-              <span className={`dot dot-${lvl}`}>●</span>
-              <span className="tags">{ev.risk_tags.join(",")}</span>
-            </>
-          )}
-        </span>
-      </div>
-      {expanded && expandable && (
-        <div className="row-expanded-wrap">
-          <div className="row-expanded-pane">{renderMarkdownLite(fullText)}</div>
-          {clickable && (
-            <div className="row-expanded-actions">
-              <button
-                type="button"
-                className="row-expanded-open"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenSession!(ev.session_id);
-                }}
-              >
-                打开会话 →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
