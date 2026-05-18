@@ -40,6 +40,11 @@ export interface SessionSummary {
   event_count: number;
   high_risk_count: number;
   tool_count: number;
+  /** Highlighted snippet from the best-matching event (FTS hits only).
+   *  Match tokens are wrapped in literal `<<` / `>>` markers — render with care. */
+  match_snippet?: string;
+  /** Number of events in this session whose text matched the FTS query. */
+  match_count?: number;
 }
 
 export interface SessionCategory {
@@ -58,10 +63,14 @@ export interface SessionsFilter {
 export interface DailyCost {
   day: string;             // YYYY-MM-DD
   agent: string;
+  model: string;
   input_tokens: number;
   cache_read_tokens: number;
   cache_creation_tokens: number;
   output_tokens: number;
+  reasoning_tokens: number;
+  /** Stale: derived at insert time with legacy hardcoded prices. The cost
+   *  view ignores this and recomputes from raw tokens via pricing.ts. */
   cost_micros: number;
 }
 
@@ -71,6 +80,17 @@ export interface ModelCost {
   cache_read_tokens: number;
   cache_creation_tokens: number;
   output_tokens: number;
+  reasoning_tokens: number;
+  cost_micros: number;
+}
+
+export interface ModelUsage {
+  model: string;
+  input_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
+  output_tokens: number;
+  reasoning_tokens: number;
   cost_micros: number;
 }
 
@@ -133,8 +153,9 @@ export interface AgentPolicy {
 export type BackfillProgress =
   | { phase: "started" }
   | { phase: "hashes_migrated"; migrated: number }
+  | { phase: "fts_indexed"; indexed: number }
   | { phase: "scanning"; scanned: number; inserted: number }
-  | { phase: "done"; scanned: number; inserted: number; hashes_migrated: number }
+  | { phase: "done"; scanned: number; inserted: number; hashes_migrated: number; fts_indexed: number }
   | { phase: "failed"; error: string };
 
 export function fmtTokens(n: number): string {

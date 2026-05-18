@@ -8,8 +8,14 @@ use serde::Serialize;
 pub enum BackfillProgress {
     Started,
     HashesMigrated { migrated: usize },
+    FtsIndexed { indexed: usize },
     Scanning { scanned: usize, inserted: usize },
-    Done { scanned: usize, inserted: usize, hashes_migrated: usize },
+    Done {
+        scanned: usize,
+        inserted: usize,
+        hashes_migrated: usize,
+        fts_indexed: usize,
+    },
     Failed { error: String },
 }
 
@@ -19,6 +25,10 @@ pub fn run(db: &Db, mut on_progress: impl FnMut(BackfillProgress)) -> Result<()>
     // 1) Hash any pre-existing rows so the unique-index dedupe is effective.
     let migrated = db.backfill_hashes().unwrap_or(0);
     on_progress(BackfillProgress::HashesMigrated { migrated });
+
+    // 1b) Backfill the full-text index for events that predate the FTS table.
+    let fts_indexed = db.backfill_fts().unwrap_or(0);
+    on_progress(BackfillProgress::FtsIndexed { indexed: fts_indexed });
 
     // 2) Walk every JSONL we know about from the very beginning.
     let home = dirs::home_dir().ok_or_else(|| anyhow!("no HOME"))?;
@@ -44,10 +54,15 @@ pub fn run(db: &Db, mut on_progress: impl FnMut(BackfillProgress)) -> Result<()>
         }
     })?;
 
+    // Any pending-backfill signal (e.g. set by a migration that purged rows)
+    // is satisfied once a full backfill completes.
+    db.kv_delete("pending_backfill");
+
     on_progress(BackfillProgress::Done {
         scanned,
         inserted,
         hashes_migrated: migrated,
+        fts_indexed,
     });
     Ok(())
 }

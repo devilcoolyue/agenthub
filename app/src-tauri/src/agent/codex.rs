@@ -54,6 +54,12 @@ pub fn parse_line(line: &str, session_id: &str, st: &mut CodexState) -> Result<O
             if let Some(c) = p.get("cwd").and_then(|x| x.as_str()) {
                 st.cwd = Some(c.into());
             }
+            // turn_context is the authoritative source for the active model
+            // (e.g. "gpt-5.2", "gpt-5.5", "gpt-5.3-codex"). session_meta usually
+            // omits it. Model can change mid-session, so update on every turn.
+            if let Some(m) = p.get("model").and_then(|x| x.as_str()) {
+                st.model = Some(m.into());
+            }
         }
         return Ok(None);
     }
