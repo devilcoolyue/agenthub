@@ -34,6 +34,15 @@ export function shortenCwd(cwd: string | null): string {
   return cwd.replace(/^\/Users\/[^/]+/, "~");
 }
 
+export function cwdLabel(cwd: string | null, translate?: Translator): string {
+  if (!cwd) return translate ? translate("dash.nocwd") : "(no cwd)";
+  const stripped = cwd.replace(/^\/Users\/[^/]+\//, "");
+  const parts = stripped.split("/").filter(Boolean);
+  if (parts.length === 0) return stripped || cwd;
+  if (parts.length <= 2) return parts.join("/");
+  return parts.slice(-2).join("/");
+}
+
 export function formatRange(
   startIso: string,
   endIso: string,
