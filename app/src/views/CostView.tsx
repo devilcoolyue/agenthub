@@ -7,6 +7,7 @@ import { useSettings } from "../settings";
 import { useAnimatedNumber } from "../hooks";
 import claudeIcon from "../assets/claude.svg";
 import codexIcon from "../assets/codex.svg";
+import "./CostView.css";
 
 const AGENT_ICON: Record<Agent, string> = {
   "claude-code": claudeIcon,

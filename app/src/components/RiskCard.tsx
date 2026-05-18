@@ -1,5 +1,6 @@
 import type { RiskSummary } from "../types";
 import { useSettings } from "../settings";
+import "./RiskCard.css";
 
 export function RiskCard({ risk }: { risk: RiskSummary }) {
   const { t } = useSettings();

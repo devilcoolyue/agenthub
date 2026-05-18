@@ -1,3 +1,5 @@
+import "./Segmented.css";
+
 export function Segmented<T extends string>({
   value,
   options,

@@ -1,0 +1,54 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+/* Tool dropdown */
+.tool-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-select .select-label {
+  color: var(--text-faint);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tool-select select {
+  background: var(--bg-row);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 22px 3px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 8px;
+  cursor: pointer;
+  transition: border-color 100ms ease;
+}
+
+.tool-select select:hover { border-color: var(--text-faint); }
+.tool-select select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Right-side toggle switches */
+.toolbar-right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}

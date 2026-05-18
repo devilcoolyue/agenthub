@@ -1,3 +1,5 @@
+import "./ToggleSwitch.css";
+
 export function ToggleSwitch({
   checked,
   label,

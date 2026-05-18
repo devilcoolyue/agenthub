@@ -13,6 +13,7 @@ import {
   livenessOf,
   shortenCwd,
 } from "../utils";
+import "./SessionsView.css";
 
 type CategorySelection =
   | { kind: "all" }

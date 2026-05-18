@@ -1,0 +1,414 @@
+/* Sessions layout */
+.sessions-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  overflow: hidden;
+}
+
+.sessions-sidebar {
+  background: var(--bg-elev);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  padding: 14px 16px 6px;
+}
+
+.sidebar-projects {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 7px 16px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+}
+
+.sidebar-item.selected {
+  background: rgba(88, 166, 255, 0.10);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+.sidebar-item.danger {
+  color: var(--red);
+}
+.sidebar-item.danger.selected {
+  background: rgba(248, 81, 73, 0.10);
+  border-left-color: var(--red);
+}
+
+.sb-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.sb-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sb-count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.sb-risk {
+  background: rgba(248, 81, 73, 0.18);
+  color: var(--red);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 5px;
+  border-radius: 8px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.sessions-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sessions-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+  position: relative;
+}
+
+.sessions-search {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.sessions-search:focus {
+  border-color: var(--accent);
+}
+
+.sessions-search-hint {
+  padding: 6px 16px 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.search-clear {
+  position: absolute;
+  right: 24px;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 6px;
+}
+.search-clear:hover { color: var(--text); }
+
+.sessions-list {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 12px;
+  padding: 16px 20px;
+  align-content: start;
+}
+
+.sentinel {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 14px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.session-card {
+  text-align: left;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 100ms ease, transform 100ms ease, background 100ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.session-card:hover {
+  border-color: var(--accent);
+  background: #1a2230;
+  transform: translateY(-1px);
+}
+
+.session-card.high {
+  border-color: rgba(248, 81, 73, 0.35);
+  background: rgba(248, 81, 73, 0.05);
+}
+
+.session-card.high:hover {
+  border-color: var(--red);
+  background: rgba(248, 81, 73, 0.10);
+}
+
+/* Liveness states ---------------------------------------------------- */
+/* `recent` (≤5min): subtle static accent, no animation. */
+.session-card[data-live="recent"] {
+  border-color: rgba(63, 185, 80, 0.35);
+}
+
+/* `live` (≤15s): pulsing glow + slow background breath. The border stays
+   owned by the risk state (red when flagged) — liveness rides on the
+   box-shadow + background overlay so the two signals stack cleanly. */
+.session-card[data-live="live"] {
+  animation: card-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes card-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.0),
+                0 0 0 1px rgba(63, 185, 80, 0.35) inset;
+    background: var(--bg-elev);
+  }
+  50% {
+    box-shadow: 0 0 14px 2px rgba(63, 185, 80, 0.35),
+                0 0 0 1px rgba(63, 185, 80, 0.55) inset;
+    background: rgba(63, 185, 80, 0.06);
+  }
+}
+
+/* High-risk + live → red glow instead of green, so the danger signal wins. */
+.session-card.high[data-live="live"] {
+  animation: card-pulse-high 1.4s ease-in-out infinite;
+}
+
+@keyframes card-pulse-high {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.0),
+                0 0 0 1px rgba(248, 81, 73, 0.45) inset;
+    background: rgba(248, 81, 73, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 16px 3px rgba(248, 81, 73, 0.40),
+                0 0 0 1px rgba(248, 81, 73, 0.65) inset;
+    background: rgba(248, 81, 73, 0.12);
+  }
+}
+
+/* "live" pill on session card */
+.sc-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(63, 185, 80, 0.16);
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px 2px 7px;
+  border-radius: 10px;
+}
+
+.session-card.high .sc-live-pill {
+  background: rgba(248, 81, 73, 0.16);
+  color: var(--red);
+}
+
+.sc-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dot-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.85); }
+}
+
+/* Sidebar live counter (next to All sessions) */
+.sb-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(63, 185, 80, 0.16);
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 6px 0 5px;
+  border-radius: 8px;
+  min-width: 16px;
+}
+
+.sb-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dot-blink 1.2s ease-in-out infinite;
+}
+
+/* Detail header live badge */
+.detail-header[data-live="live"] .sc-live-pill {
+  margin-left: 2px;
+}
+
+/* Respect users who don't want motion: keep the visual signal, drop the
+   animation. A static glow + still dot is plenty. */
+@media (prefers-reduced-motion: reduce) {
+  .session-card[data-live="live"],
+  .session-card.high[data-live="live"] {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.55) inset,
+                0 0 10px 1px rgba(63, 185, 80, 0.25);
+    background: rgba(63, 185, 80, 0.05);
+  }
+  .session-card.high[data-live="live"] {
+    box-shadow: 0 0 0 1px rgba(248, 81, 73, 0.6) inset,
+                0 0 10px 1px rgba(248, 81, 73, 0.25);
+    background: rgba(248, 81, 73, 0.08);
+  }
+  .sc-live-dot, .sb-live-dot { animation: none; }
+}
+
+.sc-row1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sc-session-id {
+  color: var(--text-faint);
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
+.sc-risk-pill {
+  margin-left: auto;
+  background: rgba(248, 81, 73, 0.18);
+  color: var(--red);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.sc-cwd {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sc-row3 {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.sc-num {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-num-label {
+  color: var(--text-faint);
+}
+
+.sc-match-pill {
+  margin-left: auto;
+  background: rgba(88, 166, 255, 0.16);
+  color: var(--blue, #58a6ff);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.session-card.high .sc-match-pill {
+  /* yield the right side to the risk pill when both appear */
+  margin-left: 6px;
+}
+
+.sc-snippet {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.45;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  text-align: left;
+}
+
+.sc-snippet mark {
+  background: rgba(255, 211, 61, 0.28);
+  color: var(--text);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.sc-when {
+  margin-left: auto;
+  color: var(--text-faint);
+}
+
+.sessions-list::-webkit-scrollbar { width: 10px; }

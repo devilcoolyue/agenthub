@@ -11,6 +11,7 @@ import { formatBytes } from "../utils";
 import { Segmented } from "../components/Segmented";
 import { ToggleSwitch } from "../components/ToggleSwitch";
 import { PricingSection } from "./PricingSection";
+import "./SettingsView.css";
 
 function SettingsRow({
   label,

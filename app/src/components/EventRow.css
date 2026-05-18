@@ -1,0 +1,191 @@
+.event-list {
+  flex: 1;
+  overflow-y: auto;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.event-row-wrap {
+  border-bottom: 1px solid rgba(33, 38, 45, 0.5);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 70px 100px 90px 1fr 24px 130px 200px 200px;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 20px;
+  white-space: nowrap;
+}
+
+.row:hover {
+  background: var(--bg-row-hover);
+}
+
+.row-clickable {
+  cursor: pointer;
+}
+
+.row.risk-high { background: var(--bg-risk-high); }
+.row.risk-high:hover { background: rgba(248, 81, 73, 0.14); }
+.row.risk-med { background: var(--bg-risk-med); }
+
+.row-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.row-expand-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.row-expand-btn:hover {
+  color: var(--text);
+  background: var(--bg-row-hover);
+  border-color: var(--border);
+}
+.event-row-wrap.is-expanded .row-expand-btn {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.row-expanded-wrap {
+  margin: 4px 20px 8px 102px; /* align under the `kind` column */
+}
+
+.row-expanded-pane {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px 4px 0 0;
+  color: var(--text);
+  font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.row-expanded-pane .md-bold {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.row-expanded-pane .md-code {
+  display: inline;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(110, 118, 129, 0.18);
+  font-family: inherit;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+}
+
+.row-expanded-pane .md-codeblock {
+  margin: 6px 0;
+  padding: 8px 10px;
+  background: rgba(110, 118, 129, 0.14);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11.5px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.row-expanded-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 0 4px 4px;
+}
+
+.row-expanded-open {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.row-expanded-open:hover {
+  background: rgba(88, 166, 255, 0.12);
+}
+
+.ts {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent { font-weight: 500; }
+.agent-claude-code { color: var(--cyan); }
+.agent-codex { color: var(--magenta); }
+
+.kind { font-weight: 500; }
+.k-user { color: var(--green); }
+.k-tool { color: var(--tool); }
+.k-ok { color: var(--green); }
+.k-err { color: var(--red); }
+.k-think { color: var(--text-faint); font-style: italic; }
+.k-reply { color: var(--text); }
+.k-session { color: var(--accent); font-weight: 600; }
+.k-system { color: var(--text-faint); }
+
+.detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.cwd {
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+}
+
+.model {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.dot { font-size: 10px; }
+.dot-low { color: var(--text-faint); }
+.dot-med { color: var(--yellow); }
+.dot-high { color: var(--red); }
+
+.tags { font-family: inherit; color: var(--text-dim); }
+
+.event-list::-webkit-scrollbar { width: 10px; }
+.event-list::-webkit-scrollbar-track { background: var(--bg); }
+.event-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+.event-list::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }

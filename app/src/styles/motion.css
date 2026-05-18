@@ -1,0 +1,17 @@
+/* ---------- Reduce motion ---------- */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+}
+.reduce-motion .sprite {
+  transition: transform 0ms;
+}
+.reduce-motion .bf-spinner,
+.reduce-motion .pod-spinner {
+  animation: none !important;
+  border-top-color: var(--text-dim);
+}

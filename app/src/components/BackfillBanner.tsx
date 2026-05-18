@@ -1,5 +1,6 @@
 import type { BackfillProgress } from "../types";
 import { useSettings } from "../settings";
+import "./BackfillBanner.css";
 
 export function BackfillBanner({
   p,

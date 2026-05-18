@@ -7,6 +7,7 @@ import type {
   PolicyItem,
 } from "../types";
 import { useSettings } from "../settings";
+import "./PolicyView.css";
 
 interface PendingBatch {
   items: PolicyItem[];

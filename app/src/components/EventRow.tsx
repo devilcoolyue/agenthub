@@ -10,6 +10,7 @@ import {
   renderMarkdownLite,
   shortModel,
 } from "../eventRender";
+import "./EventRow.css";
 
 export function EventRow({
   ev,

@@ -6,6 +6,7 @@ import { computeCostMicros } from "../pricing";
 import { useSettings } from "../settings";
 import { formatRange, livenessOf, shortenCwd } from "../utils";
 import { EventRow } from "../components/EventRow";
+import "./SessionDetailView.css";
 
 export function SessionDetailView({
   sessionId,

@@ -1,0 +1,29 @@
+/* Segmented control (agent / risk) */
+.segmented {
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.seg {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.seg:hover { color: var(--text); }
+
+.seg.active {
+  background: rgba(88, 166, 255, 0.16);
+  color: var(--accent);
+}

@@ -14,6 +14,9 @@ import {
 import { type Thresholds } from "./utils";
 import { makeTranslator } from "./i18n";
 import { useNow } from "./hooks";
+// Base styles + global modifiers. Density and motion override component
+// rules, so they're imported last to stay last in the CSS cascade.
+import "./styles/base.css";
 import { BackfillBanner } from "./components/BackfillBanner";
 import { RiskCard } from "./components/RiskCard";
 import { Stat } from "./components/Stat";
@@ -25,7 +28,8 @@ import { PolicyView } from "./views/PolicyView";
 import { SessionDetailView } from "./views/SessionDetailView";
 import { SessionsView } from "./views/SessionsView";
 import { SettingsView } from "./views/SettingsView";
-import "./App.css";
+import "./styles/density.css";
+import "./styles/motion.css";
 
 const MAX_EVENTS = 500;
 

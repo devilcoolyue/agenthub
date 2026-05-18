@@ -1,4 +1,5 @@
 import { type TabKey, useSettings } from "../settings";
+import "./Tabs.css";
 
 export type View =
   | { type: "activity" }

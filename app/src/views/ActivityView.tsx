@@ -5,6 +5,7 @@ import { useSettings } from "../settings";
 import { EventRow } from "../components/EventRow";
 import { Segmented } from "../components/Segmented";
 import { ToggleSwitch } from "../components/ToggleSwitch";
+import "./ActivityView.css";
 
 export function ActivityView({
   events,

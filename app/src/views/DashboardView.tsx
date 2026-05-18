@@ -4,6 +4,7 @@ import { useSettings } from "../settings";
 import { type Thresholds, cwdLabel, livenessOf, shortenCwd } from "../utils";
 import claudeIcon from "../assets/claude.svg";
 import codexIcon from "../assets/codex.svg";
+import "./DashboardView.css";
 
 interface RecentTool {
   name: string;
