@@ -1096,6 +1096,10 @@ function ActivityView({
   const [filterTool, setFilterTool] = useState<string>("all");
   const [showUsage, setShowUsage] = useState(settings.defaultShowUsage);
   const [autoScroll, setAutoScroll] = useState(settings.defaultAutoScroll);
+  // Which row is currently inline-expanded. Single-open at a time keeps the
+  // feed scannable; key is stable across re-renders since it's derived from
+  // event identity, not array index.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1121,20 +1125,33 @@ function ActivityView({
     return sorted;
   }, [events, filterTool]);
 
-  const filtered = useMemo(
-    () =>
-      events.filter((ev) => {
-        if (filterAgent !== "all" && ev.agent !== filterAgent) return false;
-        if (filterRisk === "high" && riskLevel(ev.risk_tags) !== "high") return false;
-        if (filterRisk === "med+" && riskLevel(ev.risk_tags) === "low") return false;
-        if (!showUsage && ev.kind.type === "usage") return false;
-        if (filterTool !== "all") {
-          if (ev.kind.type !== "tool_use" || ev.kind.name !== filterTool) return false;
-        }
-        return true;
-      }),
-    [events, filterAgent, filterRisk, filterTool, showUsage],
-  );
+  // Walk events oldest→newest, threading the active model per session so
+  // each row can show "what model was answering at the time" — codex can
+  // switch models mid-session, so a session-wide constant won't do.
+  const filtered = useMemo(() => {
+    const running = new Map<string, string>();
+    const out: { ev: AgentEvent; model: string | null }[] = [];
+    for (const ev of events) {
+      if (ev.usage?.model) {
+        running.set(ev.session_id, ev.usage.model);
+      } else if (
+        ev.kind.type === "session_start" &&
+        ev.kind.model &&
+        !running.has(ev.session_id)
+      ) {
+        running.set(ev.session_id, ev.kind.model);
+      }
+      if (filterAgent !== "all" && ev.agent !== filterAgent) continue;
+      if (filterRisk === "high" && riskLevel(ev.risk_tags) !== "high") continue;
+      if (filterRisk === "med+" && riskLevel(ev.risk_tags) === "low") continue;
+      if (!showUsage && ev.kind.type === "usage") continue;
+      if (filterTool !== "all") {
+        if (ev.kind.type !== "tool_use" || ev.kind.name !== filterTool) continue;
+      }
+      out.push({ ev, model: running.get(ev.session_id) ?? null });
+    }
+    return out;
+  }, [events, filterAgent, filterRisk, filterTool, showUsage]);
 
   return (
     <>
@@ -1186,9 +1203,21 @@ function ActivityView({
             {t("activity.empty")}
           </div>
         )}
-        {filtered.map((ev, i) => (
-          <EventRow key={i} ev={ev} onOpenSession={onOpenSession} />
-        ))}
+        {filtered.map(({ ev, model }, i) => {
+          const expandKey = `${ev.session_id}|${ev.timestamp}|${ev.kind.type}|${i}`;
+          return (
+            <EventRow
+              key={i}
+              ev={ev}
+              model={model}
+              onOpenSession={onOpenSession}
+              expanded={expandedKey === expandKey}
+              onToggleExpand={() =>
+                setExpandedKey((prev) => (prev === expandKey ? null : expandKey))
+              }
+            />
+          );
+        })}
       </div>
     </>
   );
@@ -2423,9 +2452,18 @@ function SessionDetailView({
       <div className="event-list">
         {events === null && <div className="empty">{t("detail.loading")}</div>}
         {events && events.length === 0 && <div className="empty">{t("detail.empty")}</div>}
-        {events?.map((ev, i) => (
-          <EventRow key={i} ev={ev} />
-        ))}
+        {(() => {
+          // Same per-session model thread as ActivityView so each event in
+          // the detail view shows the model active at the time. Detail is
+          // single-session, but codex can switch models mid-session.
+          let active: string | null = null;
+          return events?.map((ev, i) => {
+            if (ev.usage?.model) active = ev.usage.model;
+            else if (ev.kind.type === "session_start" && ev.kind.model && !active)
+              active = ev.kind.model;
+            return <EventRow key={i} ev={ev} model={active} />;
+          });
+        })()}
       </div>
     </>
   );
@@ -4296,10 +4334,16 @@ function ToggleSwitch({
 
 function EventRow({
   ev,
+  model,
   onOpenSession,
+  expanded,
+  onToggleExpand,
 }: {
   ev: AgentEvent;
+  model?: string | null;
   onOpenSession?: (sessionId: string) => void;
+  expanded?: boolean;
+  onToggleExpand?: () => void;
 }) {
   const { settings } = useSettings();
   const lvl = riskLevel(ev.risk_tags);
@@ -4310,32 +4354,108 @@ function EventRow({
   const usageDetail = ev.usage ? formatUsageDetail(ev.usage, usageCost) : "";
   const displayDetail = isUsage ? usageDetail : detail;
   const clickable = !!onOpenSession;
+  // Prefer the explicit usage model on the row itself (always authoritative);
+  // otherwise fall back to the active model threaded through from ActivityView.
+  const shownModel = ev.usage?.model ?? model ?? null;
+
+  const fullText = fullEventText(ev.kind);
+  // A row is expandable when its full text has content the single-line detail
+  // can't show — either a newline, or it's meaningfully longer than the
+  // one-line summary already in the column.
+  const expandable =
+    !!onToggleExpand &&
+    fullText.length > 0 &&
+    (fullText.includes("\n") || fullText.length > displayDetail.length + 8);
+
+  // Click priority: expand inline when there's more to see, else fall back
+  // to opening the session detail. This keeps the row click useful for
+  // every row but stops the jarring page jump on every interaction.
+  const onRowClick = expandable
+    ? () => onToggleExpand?.()
+    : clickable
+    ? () => onOpenSession!(ev.session_id)
+    : undefined;
+  const rowTitle = expandable
+    ? (expanded ? "Collapse" : "Click to expand")
+    : clickable
+    ? "Open session detail"
+    : undefined;
+  const rowInteractive = !!onRowClick;
+
   return (
-    <div
-      className={`row risk-${lvl} ${isUsage ? "row-usage" : ""} ${clickable ? "row-clickable" : ""}`}
-      onClick={clickable ? () => onOpenSession!(ev.session_id) : undefined}
-      title={clickable ? "Open session detail" : undefined}
-      role={clickable ? "button" : undefined}
-    >
-      <span className="ts">{ts}</span>
-      <span className={`agent agent-${ev.agent}`}>{ev.agent}</span>
-      <span className={`kind ${kindCls}`}>{kindLabel}</span>
-      <span className="detail" title={displayDetail}>{displayDetail}</span>
-      <span className="cwd" title={ev.cwd ?? ""}>{shortenCwd(ev.cwd)}</span>
-      <span className="risk">
-        {ev.usage && !isUsage ? (
-          <span className="cost-pill">{fmtUSD(usageCost)}</span>
-        ) : ev.risk_tags.length === 0 ? (
-          <span className="dot dot-low">·</span>
-        ) : (
-          <>
-            <span className={`dot dot-${lvl}`}>●</span>
-            <span className="tags">{ev.risk_tags.join(",")}</span>
-          </>
-        )}
-      </span>
+    <div className={`event-row-wrap${expanded ? " is-expanded" : ""}`}>
+      <div
+        className={`row risk-${lvl} ${isUsage ? "row-usage" : ""} ${rowInteractive ? "row-clickable" : ""}`}
+        onClick={onRowClick}
+        title={rowTitle}
+        role={rowInteractive ? "button" : undefined}
+      >
+        <span className="ts">{ts}</span>
+        <span className={`agent agent-${ev.agent}`}>{ev.agent}</span>
+        <span className={`kind ${kindCls}`}>{kindLabel}</span>
+        <span className="detail" title={displayDetail}>{displayDetail}</span>
+        <span className="row-expand">
+          {expandable && (
+            <button
+              type="button"
+              className="row-expand-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleExpand?.();
+              }}
+              aria-label={expanded ? "Collapse content" : "Expand content"}
+              aria-expanded={!!expanded}
+              title={expanded ? "Collapse" : "Expand"}
+            >
+              {expanded ? "▾" : "▸"}
+            </button>
+          )}
+        </span>
+        <span className="model" title={shownModel ?? ""}>
+          {shownModel ? shortModel(shownModel) : "—"}
+        </span>
+        <span className="cwd" title={ev.cwd ?? ""}>{shortenCwd(ev.cwd)}</span>
+        <span className="risk">
+          {ev.usage && !isUsage ? (
+            <span className="cost-pill">{fmtUSD(usageCost)}</span>
+          ) : ev.risk_tags.length === 0 ? (
+            <span className="dot dot-low">·</span>
+          ) : (
+            <>
+              <span className={`dot dot-${lvl}`}>●</span>
+              <span className="tags">{ev.risk_tags.join(",")}</span>
+            </>
+          )}
+        </span>
+      </div>
+      {expanded && expandable && (
+        <div className="row-expanded-wrap">
+          <div className="row-expanded-pane">{renderMarkdownLite(fullText)}</div>
+          {clickable && (
+            <div className="row-expanded-actions">
+              <button
+                type="button"
+                className="row-expanded-open"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenSession!(ev.session_id);
+                }}
+              >
+                打开会话 →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+// Short label for the row's narrow column. Only strip Anthropic's date
+// suffix — keep the `claude-` / `gpt-` prefixes since stripping them can
+// leave useless remnants like "5" for codex's `gpt-5`.
+function shortModel(m: string): string {
+  return m.replace(/-\d{8}$/, "");
 }
 
 function formatUsageDetail(u: import("./types").Usage, costMicros: number): string {
@@ -4360,7 +4480,7 @@ function renderKind(k: EventKind): { label: string; detail: string; kindCls: str
     case "assistant_text":
       return { label: "reply", detail: oneLine(k.text), kindCls: "k-reply" };
     case "tool_use":
-      return { label: k.name, detail: k.summary, kindCls: "k-tool" };
+      return { label: k.name, detail: oneLine(k.summary), kindCls: "k-tool" };
     case "tool_result":
       return { label: k.ok ? "ok" : "err", detail: oneLine(k.summary), kindCls: k.ok ? "k-ok" : "k-err" };
     case "system":
@@ -4372,8 +4492,103 @@ function renderKind(k: EventKind): { label: string; detail: string; kindCls: str
   }
 }
 
+// Strips ANSI/VT escape sequences (color, cursor, OSC) that show up in
+// tool_result summaries captured from `tail`, `cat`, build output, etc.
+// Without this the activity column renders literal `[1m[94m...[0m` noise.
+// eslint-disable-next-line no-control-regex
+const ANSI_CSI = /\x1B\[[0-?]*[ -/]*[@-~]/g;
+// eslint-disable-next-line no-control-regex
+const ANSI_OSC = /\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g;
+// eslint-disable-next-line no-control-regex
+const ANSI_OTHER = /\x1B[@-Z\\-_]/g;
+function stripAnsi(s: string): string {
+  return s.replace(ANSI_CSI, "").replace(ANSI_OSC, "").replace(ANSI_OTHER, "");
+}
+
 function oneLine(s: string): string {
-  return s.replace(/\n/g, " ⏎ ").trim();
+  return stripAnsi(s).replace(/\n/g, " ⏎ ").trim();
+}
+
+// The full (multi-line, ANSI-stripped) text shown in the inline expand pane.
+// Empty string ⇒ nothing to expand for this event kind.
+function fullEventText(k: EventKind): string {
+  switch (k.type) {
+    case "user_prompt":
+    case "assistant_text":
+    case "system":
+      return stripAnsi(k.text);
+    case "tool_use":
+    case "tool_result":
+      return stripAnsi(k.summary);
+    case "session_start":
+      return `model = ${k.model ?? "?"}\nversion = ${k.version ?? "?"}`;
+    default:
+      return "";
+  }
+}
+
+// Lightweight markdown renderer for the expand pane. Handles fenced code
+// blocks (```), inline code (`), and bold (**). Not a full parser — just
+// enough to make assistant replies and tool output readable. Preserves
+// newlines via white-space: pre-wrap on the container.
+function renderMarkdownLite(text: string): ReactNode[] {
+  const blocks: ReactNode[] = [];
+  const fenceRe = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
+  let lastIdx = 0;
+  let key = 0;
+  let m: RegExpExecArray | null;
+  while ((m = fenceRe.exec(text)) !== null) {
+    if (m.index > lastIdx) {
+      blocks.push(
+        <span key={`t-${key++}`}>
+          {renderInlineMd(text.slice(lastIdx, m.index), `i-${key++}`)}
+        </span>,
+      );
+    }
+    blocks.push(
+      <pre key={`cb-${key++}`} className="md-codeblock">
+        {m[2]}
+      </pre>,
+    );
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < text.length) {
+    blocks.push(
+      <span key={`t-${key++}`}>
+        {renderInlineMd(text.slice(lastIdx), `i-${key++}`)}
+      </span>,
+    );
+  }
+  return blocks;
+}
+
+function renderInlineMd(text: string, baseKey: string): ReactNode[] {
+  // Single pass alternating bold (**...**) and inline code (`...`).
+  // Backticks/asterisks that aren't paired pass through as plain text.
+  const out: ReactNode[] = [];
+  const re = /\*\*([^*\n]+)\*\*|`([^`\n]+)`/g;
+  let lastIdx = 0;
+  let k = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > lastIdx) out.push(text.slice(lastIdx, m.index));
+    if (m[1] !== undefined) {
+      out.push(
+        <strong key={`${baseKey}-b-${k++}`} className="md-bold">
+          {m[1]}
+        </strong>,
+      );
+    } else if (m[2] !== undefined) {
+      out.push(
+        <code key={`${baseKey}-c-${k++}`} className="md-code">
+          {m[2]}
+        </code>,
+      );
+    }
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < text.length) out.push(text.slice(lastIdx));
+  return out;
 }
 
 function shortenCwd(cwd: string | null): string {

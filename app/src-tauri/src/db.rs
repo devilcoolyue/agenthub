@@ -402,6 +402,34 @@ fn migrate(conn: &Connection) {
             "#,
         );
     }
+    if user_version < 4 {
+        // v3 cleared the bad rows and triggered a re-backfill, but the v3
+        // parser still fell back to "gpt-5" when turn_context hadn't been
+        // seen yet (e.g. token_count arrived first). v4 drops every codex
+        // usage row whose model is exactly "gpt-5" — the bare major-version
+        // string is never what real codex emits (turn_context always carries
+        // a minor like "gpt-5.5" / "gpt-5.3-codex"). Re-backfill picks up the
+        // accurate model on the next launch.
+        let _ = conn.execute_batch(
+            r#"
+            DELETE FROM events
+            WHERE agent = 'codex'
+              AND json_extract(data, '$.kind.type') = 'usage'
+              AND json_extract(data, '$.usage.model') = 'gpt-5';
+
+            UPDATE sessions
+            SET cost_micros = COALESCE(
+                (SELECT SUM(cost_micros) FROM events e WHERE e.session_id = sessions.session_id),
+                0
+            );
+
+            INSERT OR REPLACE INTO app_kv (key, value)
+            VALUES ('pending_backfill', 'codex_model_recovery_v4');
+
+            PRAGMA user_version = 4;
+            "#,
+        );
+    }
 }
 
 pub struct Db {

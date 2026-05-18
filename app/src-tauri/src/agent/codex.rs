@@ -160,7 +160,10 @@ pub fn parse_line(line: &str, session_id: &str, st: &mut CodexState) -> Result<O
                     // codex input_tokens already includes cached
                     let non_cached = input.saturating_sub(cached);
                     let usage = Usage {
-                        model: st.model.clone().or_else(|| Some("gpt-5".into())),
+                        // No fallback: if turn_context hasn't told us the
+                        // model yet, leave it None rather than lying with
+                        // "gpt-5". The pricing layer handles unknowns.
+                        model: st.model.clone(),
                         input_tokens: non_cached,
                         cache_creation_tokens: 0,
                         cache_read_tokens: cached,
