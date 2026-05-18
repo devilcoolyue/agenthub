@@ -59,7 +59,21 @@ and lets you clean up the dangerous configuration they accumulate.
 
 ---
 
-## Quick start
+## Download
+
+Pre-built macOS DMGs are published on the [Releases page](https://github.com/devilcoolyue/agenthub/releases). Pick `arm64` for Apple Silicon, `x64` for Intel.
+
+The build is not yet signed with an Apple Developer ID, so on first launch macOS will say **"AgentHub" is damaged and can't be opened**. It isn't damaged — Gatekeeper just refuses to run unsigned downloaded apps. Clear the quarantine flag once after dragging it into `/Applications`:
+
+```bash
+xattr -cr /Applications/AgentHub.app
+```
+
+Then double-click to open as usual. A signed + notarized build is on the roadmap.
+
+---
+
+## Quick start (build from source)
 
 Requires: macOS, Node ≥ 18, Rust (`rustup` will install it on first run).
 

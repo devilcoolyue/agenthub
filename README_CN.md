@@ -46,7 +46,21 @@ AgentHub 是一个本地优先的桌面仪表盘，用来观察 Claude Code、Co
 
 ---
 
-## 快速开始
+## 下载
+
+预编译的 macOS DMG 发布在 [Releases 页面](https://github.com/devilcoolyue/agenthub/releases)。Apple Silicon 选 `arm64`，Intel 选 `x64`。
+
+当前构建还没有 Apple Developer ID 签名，第一次打开会被 macOS 拦下，提示 **"AgentHub" 已损坏，无法打开**。这不是真的损坏，是 Gatekeeper 拒绝运行未签名的下载文件。把 app 拖进 `/Applications` 后，跑一次清除隔离属性即可：
+
+```bash
+xattr -cr /Applications/AgentHub.app
+```
+
+之后正常双击打开。后续会做签名 + 公证，免去这一步。
+
+---
+
+## 快速开始（从源码运行）
 
 前置要求：
 
