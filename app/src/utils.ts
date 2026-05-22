@@ -29,15 +29,31 @@ export function formatBytes(n: number): string {
   return `${v.toFixed(digits)} ${units[i]}`;
 }
 
+export function homeifyPath(path: string): string {
+  return path
+    .replace(/^\/Users\/[^/]+/, "~")
+    .replace(/^\/home\/[^/]+/, "~")
+    .replace(/^[A-Za-z]:[\\/]+Users[\\/]+[^\\/]+/, "~");
+}
+
+function pathParts(path: string): string[] {
+  return path.split(/[\\/]+/).filter(Boolean);
+}
+
+export function basename(path: string): string {
+  const parts = pathParts(path);
+  return parts[parts.length - 1] ?? path;
+}
+
 export function shortenCwd(cwd: string | null): string {
   if (!cwd) return "—";
-  return cwd.replace(/^\/Users\/[^/]+/, "~");
+  return homeifyPath(cwd);
 }
 
 export function cwdLabel(cwd: string | null, translate?: Translator): string {
   if (!cwd) return translate ? translate("dash.nocwd") : "(no cwd)";
-  const stripped = cwd.replace(/^\/Users\/[^/]+\//, "");
-  const parts = stripped.split("/").filter(Boolean);
+  const stripped = homeifyPath(cwd).replace(/^~[\\/]?/, "");
+  const parts = pathParts(stripped);
   if (parts.length === 0) return stripped || cwd;
   if (parts.length <= 2) return parts.join("/");
   return parts.slice(-2).join("/");

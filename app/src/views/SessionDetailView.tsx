@@ -30,7 +30,7 @@ export function SessionDetailView({
   const resumeRef = useRef<HTMLDivElement | null>(null);
 
   // Effective default: persisted choice if it's still installed; otherwise
-  // fall back to the first detected terminal (iTerm when present, else Terminal).
+  // fall back to the first detected terminal for the current OS.
   const effectiveDefault = useMemo(() => {
     const persisted = settings.defaultTerminal;
     if (persisted && terminals.some((tm) => tm.id === persisted)) {

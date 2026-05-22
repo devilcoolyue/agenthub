@@ -22,8 +22,8 @@ fn spawn_tail(app: AppHandle, db: Arc<Db>) {
             Some(h) => h,
             None => return,
         };
-        let claude_root = home.join(".claude/projects");
-        let codex_root = home.join(".codex/sessions");
+        let claude_root = home.join(".claude").join("projects");
+        let codex_root = home.join(".codex").join("sessions");
 
         // tail mode: only new activity from sessions touched in the last 24h
         let mut tailer = Tailer::new(true, Some(60 * 60 * 24));

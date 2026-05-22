@@ -7,6 +7,7 @@ import type {
   PolicyItem,
 } from "../types";
 import { useSettings } from "../settings";
+import { basename, homeifyPath } from "../utils";
 import "./PolicyView.css";
 
 interface PendingBatch {
@@ -101,7 +102,7 @@ export function PolicyView() {
         backupPath: b.backup_path,
         originalPath: b.original_path,
       });
-      setSuccess(t("policy.restored", { file: b.original_path.split("/").pop() ?? "" }));
+      setSuccess(t("policy.restored", { file: basename(b.original_path) }));
       await reload();
     } catch (e) {
       setError(String(e));
@@ -136,7 +137,7 @@ export function PolicyView() {
               <li key={b.backup_path} className="history-row">
                 <div className="hr-main">
                   <div className="hr-file">
-                    {b.original_path.replace(/^\/Users\/[^/]+/, "~")}
+                    {homeifyPath(b.original_path)}
                   </div>
                   <div className="hr-meta">
                     {new Date(b.timestamp).toLocaleString()} ·{" "}
@@ -221,7 +222,7 @@ function ConfirmRemoveModal({
         <div className="modal-detail">
           {filesAffected.length === 1
             ? t("policy.modal.affectsOne", {
-                file: filesAffected[0].replace(/^\/Users\/[^/]+/, "~"),
+                file: homeifyPath(filesAffected[0]),
               })
             : t("policy.modal.affectsMany", { n: filesAffected.length })}
         </div>

@@ -32,8 +32,8 @@ pub fn run(db: &Db, mut on_progress: impl FnMut(BackfillProgress)) -> Result<()>
 
     // 2) Walk every JSONL we know about from the very beginning.
     let home = dirs::home_dir().ok_or_else(|| anyhow!("no HOME"))?;
-    let claude_root = home.join(".claude/projects");
-    let codex_root = home.join(".codex/sessions");
+    let claude_root = home.join(".claude").join("projects");
+    let codex_root = home.join(".codex").join("sessions");
 
     let mut tailer = Tailer::new(false, None); // start_from_end=false, no age limit
     tailer.scan_dir(&claude_root, Source::ClaudeCode);

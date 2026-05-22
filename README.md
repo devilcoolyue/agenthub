@@ -54,14 +54,17 @@ and lets you clean up the dangerous configuration they accumulate.
 - Not a sandbox / not OS-level interception. AgentHub watches and edits
   config; it does not hook syscalls.
 - Not a cloud product. Everything lives in `~/Library/Application Support/com.agenthub.dev/events.db` and never leaves your machine.
-- Not (yet) Windows / Linux. macOS only for now (the agents we target ship
-  Mac binaries first).
+- Not a fully mature cross-platform product. macOS is still the primary
+  release target; Windows 10 source-run support has been validated locally
+  and is usable from source.
 
 ---
 
 ## Download
 
 Pre-built macOS DMGs are published on the [Releases page](https://github.com/devilcoolyue/agenthub/releases). Pick `arm64` for Apple Silicon, `x64` for Intel.
+
+Windows 10 does not have a pre-built installer yet. Run from source for now.
 
 The build is not yet signed with an Apple Developer ID, so on first launch macOS will say **"AgentHub" is damaged and can't be opened**. It isn't damaged — Gatekeeper just refuses to run unsigned downloaded apps. Clear the quarantine flag once after dragging it into `/Applications`:
 
@@ -75,7 +78,10 @@ Then double-click to open as usual. A signed + notarized build is on the roadmap
 
 ## Quick start (build from source)
 
-Requires: macOS, Node ≥ 18, Rust (`rustup` will install it on first run).
+Requires: macOS or Windows 10 source-run, Node ≥ 18, Rust
+(`rustup` will install it on first run). Windows 10 also needs the MSVC Rust
+toolchain and WebView2 Runtime. Windows Terminal is optional; PowerShell is
+used as the fallback.
 
 ```bash
 cd app
@@ -86,6 +92,21 @@ npm run tauri dev
 The window will open and immediately start tailing your `~/.claude/projects/`
 and `~/.codex/sessions/` directories. Use your agents normally; events
 appear within ~1 second.
+
+On Windows 10 the watched paths are:
+
+- `%USERPROFILE%\.claude\projects`
+- `%USERPROFILE%\.codex\sessions`
+
+The "Resume" action supports Windows Terminal / PowerShell and runs
+`claude --resume <session_id>` or `codex resume <session_id>` in the
+session's launch directory. Make sure `claude` and `codex` are available on
+your Windows `PATH`.
+
+Windows 10 has been validated with frontend build, Rust/Tauri compilation,
+application launch, SQLite initialization, and user-level usability testing.
+There is no pre-built Windows installer yet, so use the local build output or
+run from source.
 
 On first run, click **"Backfill from sources"** in the top-left header to
 import all your historical sessions. This is idempotent and safe.
@@ -176,6 +197,8 @@ Useful files for orientation:
 - [`plan/ARCHITECTURE.md`](plan/ARCHITECTURE.md) — how the code is laid out
 - [`plan/ROADMAP.md`](plan/ROADMAP.md) — what's next
 - [`plan/BACKLOG.md`](plan/BACKLOG.md) — granular tasks
+- [`plan/WINDOWS_ADAPTATION_PLAN.md`](plan/WINDOWS_ADAPTATION_PLAN.md) —
+  Windows 10 adaptation plan
 - [`agenthub-tail/`](agenthub-tail/) — original CLI prototype, kept as a
   minimum reproducible demo of the JSONL parser
 

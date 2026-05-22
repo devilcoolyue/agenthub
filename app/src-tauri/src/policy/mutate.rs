@@ -15,7 +15,7 @@ pub fn apply_remove_batch(actions: &[RemoveAction]) -> Result<BatchResult> {
     // Group actions by target file path.
     let mut by_file: HashMap<PathBuf, Vec<&RemoveAction>> = HashMap::new();
     let home = dirs::home_dir().ok_or_else(|| anyhow!("no home"))?;
-    let codex_cfg = home.join(".codex/config.toml");
+    let codex_cfg = home.join(".codex").join("config.toml");
 
     for a in actions {
         let p: PathBuf = match a {
