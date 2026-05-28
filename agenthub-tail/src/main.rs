@@ -23,8 +23,8 @@ fn main() -> Result<()> {
     let mut tailer = Tailer::new(!from_start, max_age_secs);
 
     let home = dirs::home_dir().expect("home dir");
-    let claude_root = home.join(".claude/projects");
-    let codex_root = home.join(".codex/sessions");
+    let claude_root = home.join(".claude").join("projects");
+    let codex_root = home.join(".codex").join("sessions");
 
     print_header(
         &claude_root.display().to_string(),

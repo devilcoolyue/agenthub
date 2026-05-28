@@ -17,7 +17,7 @@ export interface Settings {
   reduceMotion: boolean;
   language: Lang;
   retentionDays: RetentionDays;
-  // null = auto (pick the first detected terminal, iTerm if installed).
+  // null = auto (pick the first detected terminal for the current OS).
   defaultTerminal: string | null;
   terminalProxyEnabled: boolean;
   // Stored as the user typed it; bare host:port is treated as http:// at launch.

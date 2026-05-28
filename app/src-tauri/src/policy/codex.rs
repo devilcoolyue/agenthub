@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 pub(super) fn read_codex(home: &Path) -> Result<AgentPolicy> {
-    let cfg = home.join(".codex/config.toml");
+    let cfg = home.join(".codex").join("config.toml");
     let mut items = Vec::new();
     let mut files = Vec::new();
     let mut model: Option<String> = None;

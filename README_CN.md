@@ -42,13 +42,15 @@ AgentHub 是一个本地优先的桌面仪表盘，用来观察 Claude Code、Co
 
 - **不是沙箱**：AgentHub 不拦截系统调用，也不提供 OS 级隔离。它负责观察 Agent 行为、分析风险，并安全编辑配置。
 - **不是云服务**：数据默认保存在本机 SQLite 数据库中，不上传到任何服务器。
-- **不是通用跨平台版本**：当前优先支持 macOS，因为目标 Agent 生态主要从 macOS 开始验证。
+- **不是完整成熟的跨平台版本**：macOS 仍是主要发布平台；Windows 10 已通过源码构建、启动和可用性验证，可从源码运行。
 
 ---
 
 ## 下载
 
 预编译的 macOS DMG 发布在 [Releases 页面](https://github.com/devilcoolyue/agenthub/releases)。Apple Silicon 选 `arm64`，Intel 选 `x64`。
+
+Windows 10 目前暂无预编译安装包，请从源码运行。
 
 当前构建还没有 Apple Developer ID 签名，第一次打开会被 macOS 拦下，提示 **"AgentHub" 已损坏，无法打开**。这不是真的损坏，是 Gatekeeper 拒绝运行未签名的下载文件。把 app 拖进 `/Applications` 后，跑一次清除隔离属性即可：
 
@@ -64,9 +66,11 @@ xattr -cr /Applications/AgentHub.app
 
 前置要求：
 
-- macOS
+- macOS，或 Windows 10 源码运行
 - Node.js 18 或更高版本
 - Rust 工具链。如果没有安装，可以通过 `rustup` 安装
+- Windows 10 需要 MSVC Rust toolchain 与 WebView2 Runtime
+- Windows Terminal 可选；没有时会回退到 PowerShell
 
 从仓库根目录执行：
 
@@ -81,7 +85,28 @@ npm run tauri dev
 - `~/.claude/projects/`
 - `~/.codex/sessions/`
 
+在 Windows 10 下对应为：
+
+- `%USERPROFILE%\.claude\projects`
+- `%USERPROFILE%\.codex\sessions`
+
 正常使用 Claude Code 或 Codex 时，新事件会自动进入 AgentHub。首次运行时，可以点击界面左上角的 **Backfill from sources**，把已有历史会话导入数据库。该操作是幂等的，可以重复运行。
+
+### Windows 10 说明
+
+Windows 10 适配包含：
+
+- 使用 Windows 用户目录下的 `.claude` / `.codex` 日志和配置路径。
+- 路径展示支持 `C:\...`、盘符、反斜杠和中文路径。
+- “恢复会话”支持 Windows Terminal / PowerShell，分别执行 `claude --resume <session_id>` 和 `codex resume <session_id>`。
+- 终端代理会转换为 PowerShell 环境变量。
+- 已在 Windows 10 完成前端构建、Rust/Tauri 编译、应用启动、数据库初始化和用户可用性验证。
+
+仍需注意：
+
+- 需要确保 `claude` 和 `codex` 命令在 Windows PATH 中可用。
+- Windows Terminal 未安装时会自动回退到 PowerShell。
+- Windows 安装包尚未发布，当前以源码运行和本机编译产物为主。
 
 ---
 
@@ -218,6 +243,7 @@ MVP 已覆盖：
 - [`plan/ARCHITECTURE.md`](plan/ARCHITECTURE.md)：架构与模块设计
 - [`plan/ROADMAP.md`](plan/ROADMAP.md)：路线图
 - [`plan/BACKLOG.md`](plan/BACKLOG.md)：细粒度任务列表
+- [`plan/WINDOWS_ADAPTATION_PLAN.md`](plan/WINDOWS_ADAPTATION_PLAN.md)：Windows 10 适配计划
 
 ---
 

@@ -6,8 +6,8 @@ use std::fs;
 use std::path::Path;
 
 pub(super) fn read_claude(home: &Path) -> Result<AgentPolicy> {
-    let settings = home.join(".claude/settings.json");
-    let local = home.join(".claude/settings.local.json");
+    let settings = home.join(".claude").join("settings.json");
+    let local = home.join(".claude").join("settings.local.json");
     let mut items = Vec::new();
     let mut files: Vec<String> = Vec::new();
     let mut model: Option<String> = None;
@@ -64,7 +64,7 @@ pub(super) fn read_claude(home: &Path) -> Result<AgentPolicy> {
     }
 
     // hooks.json — separate file
-    let hooks_path = home.join(".claude/hooks.json");
+    let hooks_path = home.join(".claude").join("hooks.json");
     if let Ok(s) = fs::read_to_string(&hooks_path) {
         files.push(hooks_path.display().to_string());
         if let Ok(v) = serde_json::from_str::<Value>(&s) {
