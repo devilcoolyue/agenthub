@@ -18,6 +18,7 @@ import { useNow } from "./hooks";
 // rules, so they're imported last to stay last in the CSS cascade.
 import "./styles/base.css";
 import { BackfillBanner } from "./components/BackfillBanner";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { RiskCard } from "./components/RiskCard";
 import { Stat } from "./components/Stat";
 import { type View, Tabs } from "./components/Tabs";
@@ -241,6 +242,8 @@ function App() {
         </div>
         <RiskCard risk={risk} />
       </header>
+
+      <UpdateBanner />
 
       {backfill && (
         <BackfillBanner

@@ -4,6 +4,7 @@ import { useSettings } from "../settings";
 import { type Thresholds, cwdLabel, livenessOf, shortenCwd } from "../utils";
 import claudeIcon from "../assets/claude.svg";
 import codexIcon from "../assets/codex.svg";
+import { OverviewBand } from "../components/OverviewBand";
 import "./DashboardView.css";
 
 interface RecentTool {
@@ -235,6 +236,8 @@ export function DashboardView({
 
   return (
     <div className="dashboard-view">
+      <OverviewBand events={events} now={now} />
+
       <div className="dash-strip">
         {(Object.keys(data.perAgent) as Agent[]).map((agent) => {
           const v = data.perAgent[agent];

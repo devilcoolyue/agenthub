@@ -94,6 +94,13 @@ export interface ModelUsage {
   cost_micros: number;
 }
 
+/** Today's per-agent activity rollup (from get_today_agent_stats). */
+export interface AgentDayStat {
+  agent: string;
+  events: number;
+  high_risk: number;
+}
+
 export function fmtUSD(micros: number): string {
   const dollars = micros / 1_000_000;
   if (dollars >= 1000) return "$" + dollars.toFixed(0);
@@ -133,6 +140,7 @@ export interface PolicyItem {
     | "trusted-project"
     | "model-provider"
     | "mcp-server"
+    | "rule"
     | "hook"
     | "info";
   label: string;

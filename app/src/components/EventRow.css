@@ -138,6 +138,7 @@
 .agent { font-weight: 500; }
 .agent-claude-code { color: var(--cyan); }
 .agent-codex { color: var(--magenta); }
+.agent-cursor { color: var(--yellow); }
 
 .kind { font-weight: 500; }
 .k-user { color: var(--green); }

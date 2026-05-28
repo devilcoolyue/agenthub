@@ -1,0 +1,61 @@
+/* Update banner — mirrors the backfill banner's layout/colors. */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  font-size: 12px;
+  background: rgba(88, 166, 255, 0.1);
+  border-bottom: 1px solid rgba(88, 166, 255, 0.3);
+  color: var(--text);
+}
+
+.update-banner.error {
+  background: rgba(248, 81, 73, 0.1);
+  border-bottom-color: rgba(248, 81, 73, 0.4);
+  color: var(--red);
+}
+
+.ub-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--text-faint);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+  flex-shrink: 0;
+}
+
+.ub-msg {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ub-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: 5px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+}
+
+.ub-btn:hover {
+  filter: brightness(1.1);
+}
+
+.ub-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 6px;
+  line-height: 1;
+}
+
+.ub-dismiss:hover {
+  color: var(--text);
+}

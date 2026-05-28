@@ -42,7 +42,9 @@ is the "first 10 seconds" experience and the release pipeline.
 
 ### Nice-to-have for v0.1
 
-- [ ] Auto-update infrastructure (Tauri updater)
+- [x] Auto-update infrastructure (Tauri updater) — checks GitHub Releases'
+      `latest.json` on launch and offers a one-click download + relaunch.
+      Updates are minisign-signed in CI (`TAURI_SIGNING_PRIVATE_KEY`).
 - [ ] Issue templates + CONTRIBUTING.md
 - [ ] Crash report opt-in (anonymous; optional; off by default)
 
@@ -52,16 +54,19 @@ is the "first 10 seconds" experience and the release pipeline.
 
 Goal: finish the "all your AI agents in one place" claim.
 
-- [ ] **Cursor adapter**. Cursor has no JSONL audit log, so this is a
-  *static* view: parse `~/Library/Application Support/Cursor/` to surface
-  installed MCP servers, rules, and settings. Activity remains Claude /
-  Codex only. UI treats Cursor as "configuration-only" card.
+- [x] **Cursor adapter**. Cursor has no JSONL audit log, so this is a
+  *static* view: reads `~/.cursor/mcp.json`, `~/.cursor/rules/` (+ legacy
+  `~/.cursorrules`), and the JSONC `User/settings.json` to surface MCP
+  servers, rules, and settings. Activity remains Claude / Codex only;
+  rendered as a read-only "configuration-only" card in Policy.
 - [ ] **Gemini CLI adapter** (live, similar to Codex once we see their
   session format).
 - [ ] **OpenHands adapter** if user demand appears.
-- [ ] **Multi-agent dashboard** — a top-level overview screen aggregating
-  status across all agents (active/idle, today's events, today's $, top
-  risk).
+- [x] **Multi-agent dashboard** — per-agent overview band atop the Dashboard
+  view: status (active/idle/config-only), today's events, today's $, and
+  risk (today's high-risk activity + policy config flagged) for claude-code,
+  codex, and cursor. Backed by `get_today_agent_stats` + reused
+  `get_daily_cost`/`get_agent_policies`.
 - [ ] **Live Session Detail** — currently a snapshot; subscribe to
   `agent-event` filtered by `session_id` and append in real time.
 

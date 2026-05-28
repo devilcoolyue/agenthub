@@ -263,6 +263,7 @@ function PolicyCard({
     "model-provider",
     "trusted-project",
     "mcp-server",
+    "rule",
     "hook",
     "info",
   ];

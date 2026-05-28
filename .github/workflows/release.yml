@@ -16,8 +16,10 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             arch: arm64
+            plat: darwin-aarch64
           - target: x86_64-apple-darwin
             arch: x64
+            plat: darwin-x86_64
     steps:
       - uses: actions/checkout@v4
 
@@ -50,13 +52,22 @@ jobs:
 
       - name: Build Tauri bundle
         working-directory: app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx tauri build --target ${{ matrix.target }}
 
       - name: Collect artifacts
         run: |
           mkdir -p dist-artifacts
-          find app/src-tauri/target/${{ matrix.target }}/release/bundle/dmg -name '*.dmg' -exec cp {} dist-artifacts/ \;
-          find app/src-tauri/target/${{ matrix.target }}/release/bundle/macos -name '*.app.tar.gz' -exec cp {} dist-artifacts/ \; || true
+          bundle=app/src-tauri/target/${{ matrix.target }}/release/bundle
+          find "$bundle/dmg" -name '*.dmg' -exec cp {} dist-artifacts/ \;
+          # The updater bundle + signature are named without an arch, so rename
+          # them per-platform to avoid collisions when both arches are merged.
+          tgz=$(find "$bundle/macos" -name '*.app.tar.gz' | head -1)
+          sig=$(find "$bundle/macos" -name '*.app.tar.gz.sig' | head -1)
+          cp "$tgz" "dist-artifacts/AgentHub_${{ matrix.plat }}.app.tar.gz"
+          cp "$sig" "dist-artifacts/AgentHub_${{ matrix.plat }}.app.tar.gz.sig"
           ls -la dist-artifacts
 
       - name: Upload artifacts
@@ -83,13 +94,40 @@ jobs:
       - name: Flatten artifacts
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.dmg' -o -name '*.app.tar.gz' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' \) -exec cp {} release/ \;
           ls -la release
+
+      - name: Generate updater manifest (latest.json)
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          platforms='{}'
+          for plat in darwin-aarch64 darwin-x86_64; do
+            sigfile="release/AgentHub_${plat}.app.tar.gz.sig"
+            if [ -f "$sigfile" ]; then
+              platforms=$(jq -n \
+                --argjson acc "$platforms" \
+                --arg p "$plat" \
+                --arg s "$(cat "$sigfile")" \
+                --arg u "${base}/AgentHub_${plat}.app.tar.gz" \
+                '$acc + {($p): {signature: $s, url: $u}}')
+            fi
+          done
+          jq -n \
+            --arg v "$version" \
+            --arg d "$pub_date" \
+            --argjson pf "$platforms" \
+            '{version: $v, pub_date: $d, platforms: $pf}' > release/latest.json
+          cat release/latest.json
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*
+          files: |
+            release/*.dmg
+            release/*.app.tar.gz
+            release/latest.json
           generate_release_notes: true
           draft: false
           prerelease: false

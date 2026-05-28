@@ -1,0 +1,102 @@
+/* ===================================================================
+   Overview band — per-agent "today" summary atop the dashboard
+   =================================================================== */
+.overview-band {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.ov-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ov-card.has-risk {
+  border-color: rgba(248, 81, 73, 0.4);
+  background: var(--bg-risk-high);
+}
+
+.ov-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ov-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: none;
+}
+.ov-dot.agent-claude-code { background: var(--cyan); }
+.ov-dot.agent-codex { background: var(--magenta); }
+.ov-dot.agent-cursor { background: var(--yellow); }
+
+.ov-name {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+}
+
+.ov-status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+}
+.ov-status-active { color: var(--green); background: rgba(63, 185, 80, 0.12); }
+.ov-status-idle { color: var(--text-faint); }
+.ov-status-config-only { color: var(--yellow); background: rgba(210, 153, 34, 0.1); }
+
+.ov-metrics {
+  display: flex;
+  gap: 16px;
+}
+
+.ov-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ov-metric-val {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.ov-metric-val.risk { color: var(--red); }
+
+.ov-metric-lbl {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.ov-risk-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-risk-part.risk { color: var(--red); font-weight: 600; }
+.ov-risk-sep { color: var(--text-faint); }

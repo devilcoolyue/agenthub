@@ -20,7 +20,9 @@ For the bigger picture, see [`ROADMAP.md`](ROADMAP.md).
 - [x] First-launch banner: "Indexing your AI history…" — backfill kicks
       off automatically when the `events` table is empty
 - [ ] Landing copy at top of README (hero + 3 value props from PRD §12)
-- [ ] Optional: Tauri auto-updater (with signed releases)
+- [x] Tauri auto-updater (signed releases). `UpdateBanner` checks on launch
+      via the updater plugin; release workflow signs the `.app.tar.gz` and
+      emits `latest.json`. Needs the `TAURI_SIGNING_PRIVATE_KEY` repo secret.
 
 ---
 
@@ -63,8 +65,10 @@ For the bigger picture, see [`ROADMAP.md`](ROADMAP.md).
 - [ ] Monthly budget setting + soft warning when approaching
 - [ ] Cost by session (drill from Sessions card → Cost contribution)
 - [ ] Cost by cwd / project — "this repo cost you $42 this month"
-- [ ] Codex model detection — currently falls back to `gpt-5`. Read
-      `~/.codex/config.toml` profile to pick the real model.
+- [x] Codex model detection — seed `CodexState` from `~/.codex/config.toml`
+      (active `profile` model, else top-level `model`) so usage rows that
+      arrive before `turn_context` get the right model. Returns unknown
+      (None) when the config doesn't pin a model — we don't guess.
 
 ---
 
@@ -86,7 +90,11 @@ For the bigger picture, see [`ROADMAP.md`](ROADMAP.md).
 
 ## Adapters
 
-- [ ] Cursor adapter (read-only: settings + rules + MCP)
+- [x] Cursor adapter (read-only: settings + rules + MCP). Static
+      `AgentPolicy` card, no Activity events. Reads `~/.cursor/mcp.json`,
+      `~/.cursor/rules/*.mdc` + legacy `~/.cursorrules`, and the JSONC
+      `User/settings.json` (proxy + cursor-specific keys). All items
+      read-only (no Remove button).
 - [ ] Gemini CLI adapter (need to discover session format)
 - [ ] OpenHands adapter
 - [ ] Generic JSONL adapter ("point AgentHub at a directory pattern")
@@ -122,9 +130,10 @@ For the bigger picture, see [`ROADMAP.md`](ROADMAP.md).
 - [ ] `agenthub-tail` CLI (the original prototype) and `app/src-tauri`
       duplicate the parser code. Either delete the CLI or extract a
       shared crate.
-- [ ] Codex `model` is read from `session_meta` which is often `null`.
-      Currently we hard-code `gpt-5` as fallback. Should read
-      `~/.codex/config.toml` `[profiles.<active>].model`.
+- [x] Codex `model` is read from `session_meta` which is often `null`.
+      No longer hard-codes `gpt-5`: seeds from `~/.codex/config.toml`
+      (`[profiles.<active>].model` or top-level `model`), then lets
+      `turn_context` override. Unknown stays None rather than a wrong guess.
 - [ ] `classify_assistant` in `claude.rs` only returns the *first*
       content block of an assistant message. If a message has both
       `thinking` and `tool_use`, the `thinking` is lost.

@@ -4,11 +4,44 @@ use super::usage::Usage;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use std::path::Path;
 
 #[derive(Default)]
 pub struct CodexState {
     pub cwd: Option<String>,
     pub model: Option<String>,
+}
+
+/// Read the configured default model from `~/.codex/config.toml`.
+///
+/// Codex session logs only carry the model on `turn_context`, which can arrive
+/// after the first `token_count` (usage) line — leaving early rows with no
+/// model. The config's default fills that gap. Returns `None` when the config
+/// doesn't pin a model; we deliberately don't guess codex's built-in default,
+/// since stamping a wrong model is worse than leaving it unknown.
+pub fn config_default_model(home: &Path) -> Option<String> {
+    let cfg = home.join(".codex/config.toml");
+    let s = std::fs::read_to_string(cfg).ok()?;
+    default_model_from_toml(&s)
+}
+
+fn default_model_from_toml(s: &str) -> Option<String> {
+    let doc: toml_edit::DocumentMut = s.parse().ok()?;
+    // An active `profile` selects `[profiles.<name>].model`; it overrides the
+    // top-level `model` key.
+    if let Some(active) = doc.get("profile").and_then(|x| x.as_str()) {
+        if let Some(m) = doc
+            .get("profiles")
+            .and_then(|x| x.as_table())
+            .and_then(|t| t.get(active))
+            .and_then(|x| x.as_table())
+            .and_then(|t| t.get("model"))
+            .and_then(|x| x.as_str())
+        {
+            return Some(m.to_string());
+        }
+    }
+    doc.get("model").and_then(|x| x.as_str()).map(String::from)
 }
 
 pub fn parse_line(line: &str, session_id: &str, st: &mut CodexState) -> Result<Option<AgentEvent>> {
@@ -29,12 +62,12 @@ pub fn parse_line(line: &str, session_id: &str, st: &mut CodexState) -> Result<O
     if ty == "session_meta" {
         if let Some(p) = payload {
             st.cwd = p.get("cwd").and_then(|x| x.as_str()).map(String::from);
-            // session_meta.model is often null; fall back to gpt-5 default.
-            // (We avoid model_provider since "openai" isn't a useful model name.)
-            st.model = p
-                .get("model")
-                .and_then(|x| x.as_str())
-                .map(String::from);
+            // session_meta.model is often null. Only override when it actually
+            // carries one, so we don't clobber the config-default seed (or a
+            // model already learned from turn_context) with None.
+            if let Some(m) = p.get("model").and_then(|x| x.as_str()) {
+                st.model = Some(m.into());
+            }
         }
         return Ok(Some(make(
             session_id,
@@ -257,5 +290,80 @@ fn first_chars(s: &str, n: usize) -> String {
         s.to_string()
     } else {
         chars.into_iter().take(n).collect::<String>() + "…"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_model_reads_top_level_key() {
+        let toml = r#"
+            model = "gpt-5.5"
+            [model_providers.proxy]
+            base_url = "http://example/v1"
+        "#;
+        assert_eq!(default_model_from_toml(toml).as_deref(), Some("gpt-5.5"));
+    }
+
+    #[test]
+    fn default_model_prefers_active_profile() {
+        let toml = r#"
+            model = "gpt-5.5"
+            profile = "work"
+            [profiles.work]
+            model = "gpt-5.3-codex"
+        "#;
+        assert_eq!(
+            default_model_from_toml(toml).as_deref(),
+            Some("gpt-5.3-codex")
+        );
+    }
+
+    #[test]
+    fn default_model_falls_back_when_profile_has_no_model() {
+        let toml = r#"
+            model = "gpt-5.5"
+            profile = "work"
+            [profiles.work]
+            approval_policy = "never"
+        "#;
+        assert_eq!(default_model_from_toml(toml).as_deref(), Some("gpt-5.5"));
+    }
+
+    #[test]
+    fn default_model_is_none_when_unset() {
+        // Mirrors a config that pins providers/projects but no model — codex
+        // then uses its own built-in default, which we can't know.
+        let toml = r#"
+            [model_providers.proxy]
+            base_url = "http://example/v1"
+            [projects."/tmp/x"]
+            trust_level = "trusted"
+        "#;
+        assert_eq!(default_model_from_toml(toml), None);
+    }
+
+    #[test]
+    fn session_meta_keeps_seeded_default_when_model_null() {
+        let mut st = CodexState {
+            cwd: None,
+            model: Some("gpt-5.5".into()),
+        };
+        let line = r#"{"type":"session_meta","timestamp":"2026-05-28T00:00:00Z","payload":{"cwd":"/tmp","model":null}}"#;
+        parse_line(line, "sid", &mut st).unwrap();
+        assert_eq!(st.model.as_deref(), Some("gpt-5.5"));
+    }
+
+    #[test]
+    fn turn_context_overrides_seeded_default() {
+        let mut st = CodexState {
+            cwd: None,
+            model: Some("gpt-5.5".into()),
+        };
+        let line = r#"{"type":"turn_context","timestamp":"2026-05-28T00:00:00Z","payload":{"model":"gpt-5.3-codex"}}"#;
+        parse_line(line, "sid", &mut st).unwrap();
+        assert_eq!(st.model.as_deref(), Some("gpt-5.3-codex"));
     }
 }

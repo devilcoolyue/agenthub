@@ -48,6 +48,8 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(move |app| {
             let dir = app
                 .path()
@@ -73,6 +75,7 @@ pub fn run() {
             cost::get_daily_cost,
             cost::get_model_cost,
             cost::get_session_usage,
+            cost::get_today_agent_stats,
             policy_cmds::get_agent_policies,
             policy_cmds::remove_policy_item,
             policy_cmds::remove_policy_items,

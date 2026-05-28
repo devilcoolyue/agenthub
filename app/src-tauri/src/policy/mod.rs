@@ -1,6 +1,7 @@
 mod backup;
 mod claude;
 mod codex;
+mod cursor;
 mod mutate;
 mod scan;
 
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// A single policy line item we can display + (optionally) act on.
 #[derive(Debug, Clone, Serialize)]
 pub struct PolicyItem {
-    pub category: String,   // "permission" | "trusted-project" | "model-provider" | "mcp-server" | "hook" | "info"
+    pub category: String,   // "permission" | "trusted-project" | "model-provider" | "mcp-server" | "rule" | "hook" | "info"
     pub label: String,
     pub detail: Option<String>,
     pub risk_tags: Vec<String>, // e.g. "secret-in-rule","wildcard-permission","plaintext-token","third-party-proxy"
@@ -62,8 +63,8 @@ pub struct AgentPolicy {
     pub high_risk_count: usize,
 }
 
-/// Read configs from ~/.claude and ~/.codex, classify their entries, and
-/// return one AgentPolicy per agent that actually has files on disk.
+/// Read configs from ~/.claude, ~/.codex, and Cursor, classify their entries,
+/// and return one AgentPolicy per agent that actually has files on disk.
 pub fn read_all() -> Vec<AgentPolicy> {
     let home = match dirs::home_dir() {
         Some(h) => h,
@@ -75,6 +76,13 @@ pub fn read_all() -> Vec<AgentPolicy> {
     }
     if let Ok(p) = codex::read_codex(&home) {
         out.push(p);
+    }
+    // Cursor is read-only (configuration-only); only include it when it
+    // actually has config files on disk.
+    if let Ok(p) = cursor::read_cursor(&home) {
+        if !p.config_files.is_empty() {
+            out.push(p);
+        }
     }
     for ap in &mut out {
         ap.high_risk_count = ap

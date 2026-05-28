@@ -21,6 +21,16 @@ pub struct DailyCost {
     pub cost_micros: i64,
 }
 
+/// Today's per-agent activity rollup for the multi-agent overview band.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentDayStat {
+    pub agent: String,
+    pub events: i64,
+    /// High-risk events today (the precomputed `risk_high` flag:
+    /// shell-dangerous / secret-path).
+    pub high_risk: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelCost {
     pub model: String,
@@ -81,6 +91,32 @@ impl Db {
                 output_tokens: r.get::<_, Option<i64>>(6)?.unwrap_or(0),
                 reasoning_tokens: r.get::<_, Option<i64>>(7)?.unwrap_or(0),
                 cost_micros: r.get::<_, Option<i64>>(8)?.unwrap_or(0),
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Per-agent event + high-risk counts for the current local day. Drives
+    /// the overview band's "today's events" and activity-risk numbers.
+    pub fn today_agent_stats(&self) -> Result<Vec<AgentDayStat>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT agent, COUNT(*), COALESCE(SUM(risk_high), 0)
+            FROM events
+            WHERE DATE(timestamp, 'localtime') = DATE('now', 'localtime')
+            GROUP BY agent
+            "#,
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(AgentDayStat {
+                agent: r.get(0)?,
+                events: r.get::<_, Option<i64>>(1)?.unwrap_or(0),
+                high_risk: r.get::<_, Option<i64>>(2)?.unwrap_or(0),
             })
         })?;
         let mut out = Vec::new();
@@ -168,5 +204,42 @@ impl Db {
             out.push(r?);
         }
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Db;
+    use std::path::Path;
+
+    fn insert_event(db: &Db, agent: &str, ts: &str, risk_high: i64) {
+        let conn = db.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO events (agent, session_id, timestamp, risk_high, data)
+             VALUES (?, 'sid', ?, ?, '{}')",
+            rusqlite::params![agent, ts, risk_high],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn today_agent_stats_counts_events_and_high_risk() {
+        let db = Db::open(Path::new(":memory:")).unwrap();
+        let today = chrono::Utc::now().to_rfc3339();
+        // Yesterday should be excluded from "today".
+        let old = (chrono::Utc::now() - chrono::Duration::days(2)).to_rfc3339();
+        insert_event(&db, "claude-code", &today, 1);
+        insert_event(&db, "claude-code", &today, 0);
+        insert_event(&db, "codex", &today, 0);
+        insert_event(&db, "claude-code", &old, 1);
+
+        let stats = db.today_agent_stats().unwrap();
+        let claude = stats.iter().find(|s| s.agent == "claude-code").unwrap();
+        let codex = stats.iter().find(|s| s.agent == "codex").unwrap();
+        assert_eq!(claude.events, 2);
+        assert_eq!(claude.high_risk, 1);
+        assert_eq!(codex.events, 1);
+        assert_eq!(codex.high_risk, 0);
     }
 }

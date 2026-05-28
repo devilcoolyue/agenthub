@@ -6,7 +6,7 @@ mod kv;
 mod schema;
 mod sessions;
 
-pub use cost::{DailyCost, ModelCost, ModelUsage};
+pub use cost::{AgentDayStat, DailyCost, ModelCost, ModelUsage};
 pub use sessions::{SessionCategory, SessionSummary, SessionsFilter};
 
 use anyhow::{Context, Result};

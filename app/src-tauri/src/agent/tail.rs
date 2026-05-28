@@ -27,14 +27,18 @@ pub struct Tailer {
     files: HashMap<PathBuf, FileState>,
     pub start_from_end: bool,
     pub max_age_secs: Option<u64>,
+    codex_default_model: Option<String>,
 }
 
 impl Tailer {
     pub fn new(start_from_end: bool, max_age_secs: Option<u64>) -> Self {
+        let codex_default_model =
+            dirs::home_dir().and_then(|h| codex::config_default_model(&h));
         Self {
             files: HashMap::new(),
             start_from_end,
             max_age_secs,
+            codex_default_model,
         }
     }
 
@@ -74,7 +78,10 @@ impl Tailer {
                     offset: start,
                     partial: String::new(),
                     session_id,
-                    codex: CodexState::default(),
+                    codex: CodexState {
+                        cwd: None,
+                        model: self.codex_default_model.clone(),
+                    },
                 },
             );
         }
