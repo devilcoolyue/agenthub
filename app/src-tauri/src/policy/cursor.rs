@@ -30,7 +30,7 @@ pub(super) fn read_cursor(home: &Path) -> Result<AgentPolicy> {
 /// `~/.cursor/mcp.json` — global MCP servers. Shape:
 /// `{ "mcpServers": { "<name>": { "command"|"url", "args", "env" } } }`.
 fn read_mcp(home: &Path, items: &mut Vec<PolicyItem>, files: &mut Vec<String>) {
-    let path = home.join(".cursor/mcp.json");
+    let path = home.join(".cursor").join("mcp.json");
     let Ok(s) = fs::read_to_string(&path) else {
         return;
     };
@@ -98,7 +98,7 @@ fn mcp_carries_secret(def: &Value) -> bool {
 /// single-file `~/.cursorrules`. Project-scoped rules and the GUI "User Rules"
 /// (stored in Cursor's SQLite state) are out of scope for this global view.
 fn read_rules(home: &Path, items: &mut Vec<PolicyItem>, files: &mut Vec<String>) {
-    let dir = home.join(".cursor/rules");
+    let dir = home.join(".cursor").join("rules");
     if let Ok(entries) = fs::read_dir(&dir) {
         let mut names: Vec<String> = entries
             .filter_map(|e| e.ok())
@@ -144,11 +144,32 @@ fn read_rules(home: &Path, items: &mut Vec<PolicyItem>, files: &mut Vec<String>)
     }
 }
 
-/// `~/Library/Application Support/Cursor/User/settings.json` — VS Code-style
-/// JSONC. Surface a proxy (if configured) and a summary of Cursor-specific
-/// keys; we deliberately don't dump every editor preference.
+/// Cursor's VS Code-style `settings.json` (JSONC), under
+/// `~/Library/Application Support/Cursor/User/` on macOS and
+/// `%APPDATA%\Cursor\User\` on Windows. Surface a proxy (if configured) and a
+/// summary of Cursor-specific keys; we deliberately don't dump every editor
+/// preference.
 fn read_settings(home: &Path, items: &mut Vec<PolicyItem>, files: &mut Vec<String>) {
-    let path = home.join("Library/Application Support/Cursor/User/settings.json");
+    #[cfg(target_os = "macos")]
+    let path = home
+        .join("Library")
+        .join("Application Support")
+        .join("Cursor")
+        .join("User")
+        .join("settings.json");
+    #[cfg(target_os = "windows")]
+    let path = home
+        .join("AppData")
+        .join("Roaming")
+        .join("Cursor")
+        .join("User")
+        .join("settings.json");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let path = home
+        .join(".config")
+        .join("Cursor")
+        .join("User")
+        .join("settings.json");
     let Ok(s) = fs::read_to_string(&path) else {
         return;
     };
