@@ -2,6 +2,7 @@ mod agent;
 mod backfill;
 mod commands;
 mod db;
+mod platform;
 mod policy;
 
 use agent::{Source, Tailer};
