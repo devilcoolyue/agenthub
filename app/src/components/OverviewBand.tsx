@@ -91,20 +91,24 @@ export function OverviewBand({
   const configRiskByAgent = new Map(policies.map((p) => [p.agent, p.high_risk_count]));
   const active = activeAgents(events, now, thresholds);
 
-  // Cursor only appears if it has config on disk (matches the backend, which
-  // omits Cursor from policies when no config files exist).
-  const hasCursor = policies.some((p) => p.agent === "cursor");
+  // Cursor shows if it has config on disk OR any tracked activity. It's a real
+  // activity agent now (events / status / risk are live), but bills server-side
+  // so it has no local cost — only its cost metric reads N/A.
+  const hasCursor =
+    policies.some((p) => p.agent === "cursor") ||
+    statByAgent.has("cursor") ||
+    active.has("cursor");
   const agents = ["claude-code", "codex", ...(hasCursor ? ["cursor"] : [])];
 
   const cards: AgentCard[] = agents.map((agent) => {
-    const configOnly = agent === "cursor";
+    const noCost = agent === "cursor"; // Cursor bills server-side; no local cost
     const s = statByAgent.get(agent);
     return {
       agent,
-      status: configOnly ? "config-only" : active.has(agent) ? "active" : "idle",
-      events: configOnly ? null : s?.events ?? 0,
-      costMicros: configOnly ? null : costByAgent[agent] ?? 0,
-      activityRisk: configOnly ? 0 : s?.high_risk ?? 0,
+      status: active.has(agent) ? "active" : "idle",
+      events: s?.events ?? 0,
+      costMicros: noCost ? null : costByAgent[agent] ?? 0,
+      activityRisk: s?.high_risk ?? 0,
       configRisk: configRiskByAgent.get(agent) ?? 0,
     };
   });

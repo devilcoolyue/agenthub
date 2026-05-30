@@ -86,6 +86,7 @@ export function ActivityView({
             { v: "all", l: t("common.all") },
             { v: "claude-code", l: "claude-code" },
             { v: "codex", l: "codex" },
+            { v: "cursor", l: "cursor" },
           ]}
           onChange={(v) => setFilterAgent(v as Agent | "all")}
           ariaLabel={t("activity.filter.agent")}

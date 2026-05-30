@@ -209,4 +209,23 @@ pub(super) fn migrate(conn: &Connection) {
             "#,
         );
     }
+    if user_version < 5 {
+        // Pre-v5 Cursor ingest stamped every message at the composer's
+        // `createdAt + n ms`, assuming bubbles had no wall clock. They actually
+        // carry their own `createdAt`, so a turn continued in an old session
+        // showed up stamped at the session's creation time — often days off, so
+        // you couldn't tell what day a message was from. Drop the mis-stamped
+        // cursor rows and clear the watermark; the cursor poll re-imports them
+        // from Cursor's SQLite store (watermark 0) with real per-message
+        // timestamps on the next launch. Cursor data is fully reconstructable,
+        // so a clean wipe is safe — no JSONL involved.
+        let _ = conn.execute_batch(
+            r#"
+            DELETE FROM events   WHERE agent = 'cursor';
+            DELETE FROM sessions WHERE agent = 'cursor';
+            DELETE FROM app_kv   WHERE key = 'cursor_watermark_ms';
+            PRAGMA user_version = 5;
+            "#,
+        );
+    }
 }

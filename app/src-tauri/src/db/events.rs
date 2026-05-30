@@ -18,6 +18,7 @@ impl Db {
         let agent = match ev.agent {
             Agent::ClaudeCode => "claude-code",
             Agent::Codex => "codex",
+            Agent::Cursor => "cursor",
         };
         let ts = ev.timestamp.to_rfc3339();
         let (model, input_t, cache_create_t, cache_read_t, output_t, reasoning_t, cost) =
@@ -88,6 +89,21 @@ impl Db {
             )?;
         }
         Ok(changes > 0)
+    }
+
+    /// Pin a session's real start/end timestamps. Used by the Cursor ingest:
+    /// its events are stamped `createdAt + n ms` (stable for idempotent
+    /// re-ingest), which would otherwise collapse end_ts onto the start. The
+    /// session's true `lastUpdatedAt` is applied here so recency/duration are
+    /// correct without perturbing per-event hashes. No-op if the session row
+    /// doesn't exist yet (call after inserting its events).
+    pub fn set_session_bounds(&self, session_id: &str, start: &str, end: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sessions SET start_ts = ?2, end_ts = ?3 WHERE session_id = ?1",
+            params![session_id, start, end],
+        )?;
+        Ok(())
     }
 
     /// Catch up the FTS index for any events not yet indexed. Idempotent —

@@ -238,6 +238,7 @@ function App() {
             <Stat label={t("stat.events")} value={stats.total} />
             <Stat label={t("stat.claude")} value={stats.byAgent["claude-code"] ?? 0} accent="cyan" />
             <Stat label={t("stat.codex")} value={stats.byAgent["codex"] ?? 0} accent="magenta" />
+            <Stat label={t("stat.cursor")} value={stats.byAgent["cursor"] ?? 0} accent="yellow" />
           </div>
         </div>
         <RiskCard risk={risk} />

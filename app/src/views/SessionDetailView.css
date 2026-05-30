@@ -249,3 +249,34 @@
   padding: 1px 6px;
   border-radius: 8px;
 }
+
+/* Bottom sentinel that lazy-loads the next page of timeline rows when it
+   scrolls into view. Needs a non-zero box so IntersectionObserver tracks it. */
+.event-list-sentinel {
+  height: 1px;
+}
+
+/* Day separator inside the timeline — a centered date label flanked by rules,
+   shown at each calendar-day boundary since sessions can span many days. */
+.event-day-sep {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 20px;
+}
+
+.event-day-sep::before,
+.event-day-sep::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.event-day-label {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}

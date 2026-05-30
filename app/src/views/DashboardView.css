@@ -38,6 +38,7 @@
 
 .dash-agent.agent-claude-code .dash-agent-name { color: var(--cyan); }
 .dash-agent.agent-codex .dash-agent-name { color: var(--magenta); }
+.dash-agent.agent-cursor .dash-agent-name { color: var(--yellow); }
 
 .dash-agent-sep { color: var(--text-faint); }
 
@@ -459,6 +460,10 @@
   box-shadow: inset 3px 0 0 var(--magenta);
   padding-left: 10px;
 }
+.tool-row[data-owner="cursor"] {
+  box-shadow: inset 3px 0 0 var(--yellow);
+  padding-left: 10px;
+}
 .tool-row[data-owner="shared"] {
   box-shadow: inset 3px 0 0 var(--cyan), inset 3px -8px 0 -5px var(--magenta);
   padding-left: 10px;
@@ -469,6 +474,7 @@
 }
 .tool-row.risky[data-owner="claude"]  { box-shadow: inset 3px 0 0 var(--red); }
 .tool-row.risky[data-owner="codex"]   { box-shadow: inset 3px 0 0 var(--red); }
+.tool-row.risky[data-owner="cursor"]  { box-shadow: inset 3px 0 0 var(--red); }
 .tool-row.risky[data-owner="shared"]  { box-shadow: inset 3px 0 0 var(--red); }
 
 .tool-vendor {
@@ -498,6 +504,9 @@
 }
 .vendor-dot.vendor-codex {
   box-shadow: 0 0 4px rgba(16, 163, 127, 0.45);
+}
+.vendor-dot.vendor-cursor {
+  box-shadow: 0 0 4px rgba(210, 153, 34, 0.45);
 }
 
 .tool-name {
@@ -576,6 +585,10 @@
 .tool-row.active[data-owner="codex"] {
   box-shadow: 0 0 12px rgba(216, 115, 225, 0.25),
               inset 3px 0 0 var(--magenta);
+}
+.tool-row.active[data-owner="cursor"] {
+  box-shadow: 0 0 12px rgba(210, 153, 34, 0.25),
+              inset 3px 0 0 var(--yellow);
 }
 .tool-row.active[data-owner="shared"] {
   box-shadow: 0 0 12px rgba(227, 179, 65, 0.25),
@@ -672,6 +685,12 @@
 .sprite.agent-codex .sprite-body {
   background: radial-gradient(circle at 35% 30%, #f3a3fb, var(--magenta) 60%, #8e2a99);
   box-shadow: 0 0 12px rgba(216, 115, 225, 0.55),
+              inset 0 -2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.sprite.agent-cursor .sprite-body {
+  background: radial-gradient(circle at 35% 30%, #f5d273, var(--yellow) 60%, #9a6e12);
+  box-shadow: 0 0 12px rgba(210, 153, 34, 0.55),
               inset 0 -2px 4px rgba(0, 0, 0, 0.25);
 }
 
@@ -817,6 +836,7 @@
 
 .sprite.agent-claude-code .sprite-tag { color: rgba(57, 208, 216, 0.9); }
 .sprite.agent-codex .sprite-tag       { color: rgba(216, 115, 225, 0.9); }
+.sprite.agent-cursor .sprite-tag      { color: rgba(210, 153, 34, 0.9); }
 
 /* Folded card details below stage */
 .dash-details {

@@ -1,4 +1,4 @@
-export type Agent = "claude-code" | "codex";
+export type Agent = "claude-code" | "codex" | "cursor";
 
 export type EventKind =
   | { type: "session_start"; model: string | null; version: string | null }

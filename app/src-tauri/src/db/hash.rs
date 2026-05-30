@@ -9,6 +9,7 @@ pub fn event_hash(ev: &AgentEvent) -> String {
     let agent = match ev.agent {
         Agent::ClaudeCode => "claude-code",
         Agent::Codex => "codex",
+        Agent::Cursor => "cursor",
     };
     h.update(agent.as_bytes());
     h.update(b"|");

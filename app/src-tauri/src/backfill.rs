@@ -54,6 +54,22 @@ pub fn run(db: &Db, mut on_progress: impl FnMut(BackfillProgress)) -> Result<()>
         }
     })?;
 
+    // 3) Cursor has no JSONL to tail — read its SQLite store directly and
+    // import every session from scratch (watermark 0). Best-effort: a missing
+    // or locked Cursor DB must never fail the JSONL backfill above.
+    match crate::agent::cursor::collect(0, |s| {
+        for ev in &s.events {
+            scanned += 1;
+            if let Ok(true) = db.insert(ev) {
+                inserted += 1;
+            }
+        }
+        let _ = db.set_session_bounds(&s.composer_id, &s.start.to_rfc3339(), &s.end.to_rfc3339());
+    }) {
+        Ok(watermark) => db.kv_set("cursor_watermark_ms", &watermark.to_string()),
+        Err(e) => eprintln!("cursor backfill skipped: {e}"),
+    }
+
     // Any pending-backfill signal (e.g. set by a migration that purged rows)
     // is satisfied once a full backfill completes.
     db.kv_delete("pending_backfill");

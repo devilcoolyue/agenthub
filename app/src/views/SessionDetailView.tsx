@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { AgentEvent, ModelUsage } from "../types";
 import { fmtTokens, fmtUSD, riskLevel } from "../types";
@@ -7,6 +7,11 @@ import { useSettings } from "../settings";
 import { formatRange, livenessOf, shortenCwd } from "../utils";
 import { EventRow } from "../components/EventRow";
 import "./SessionDetailView.css";
+
+// How many timeline rows to mount per lazy-load page. The detail view keeps the
+// whole session in memory but only renders this many DOM rows at a time, growing
+// as the user scrolls — keeps large sessions snappy on WebView2 (Windows).
+const EVENT_PAGE = 120;
 
 export function SessionDetailView({
   sessionId,
@@ -28,6 +33,9 @@ export function SessionDetailView({
   const [terminals, setTerminals] = useState<{ id: string; name: string }[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const resumeRef = useRef<HTMLDivElement | null>(null);
+  const [visibleCount, setVisibleCount] = useState(EVENT_PAGE);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Effective default: persisted choice if it's still installed; otherwise
   // fall back to the first detected terminal for the current OS.
@@ -104,6 +112,65 @@ export function SessionDetailView({
     const high = events.filter((e) => riskLevel(e.risk_tags) === "high").length;
     return { agent, cwd, start, end, high };
   }, [events]);
+
+  // Timeline rows in reverse-chronological order (newest first). Model is
+  // threaded oldest→newest *first* — a model "sticks" until the next usage
+  // event — and only then reversed, so every row still shows the model that
+  // was live at its own timestamp. origIndex stays as a stable React key.
+  const rows = useMemo(() => {
+    if (!events) return [];
+    let active: string | null = null;
+    const out = events.map((ev, origIndex) => {
+      if (ev.usage?.model) active = ev.usage.model;
+      else if (ev.kind.type === "session_start" && ev.kind.model && !active)
+        active = ev.kind.model;
+      return { ev, model: active, origIndex };
+    });
+    out.reverse();
+    // Day separators: walking newest→oldest, mark the first row of each calendar
+    // day so the timeline can show a date header whenever the day changes —
+    // sessions often span multiple days and bare HH:MM:SS hides that.
+    let prevDay: string | null = null;
+    return out.map((r) => {
+      const d = new Date(r.ev.timestamp);
+      const dayKey = d.toDateString();
+      const showDay = dayKey !== prevDay;
+      prevDay = dayKey;
+      const dayLabel = showDay
+        ? d.toLocaleDateString(undefined, {
+            month: "long",
+            day: "numeric",
+            weekday: "short",
+          })
+        : "";
+      return { ...r, showDay, dayLabel };
+    });
+  }, [events]);
+
+  // Reset the lazy window when switching sessions so we don't carry a large
+  // visibleCount onto a fresh (possibly smaller) timeline.
+  useEffect(() => {
+    setVisibleCount(EVENT_PAGE);
+  }, [sessionId]);
+
+  // Grow the lazy window as the bottom sentinel scrolls into view. Root is the
+  // scrollable event-list; rootMargin pre-loads the next page before the user
+  // reaches the very bottom.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = listRef.current;
+    if (!sentinel || !root || visibleCount >= rows.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + EVENT_PAGE, rows.length));
+        }
+      },
+      { root, rootMargin: "400px 0px" },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [rows.length, visibleCount]);
 
   const launchIn = async (terminal: string) => {
     if (resumeBusy || !meta?.cwd) return;
@@ -250,21 +317,22 @@ export function SessionDetailView({
         </div>
       </div>
       {usage && usage.length > 0 && <UsageBreakdown rows={usage} />}
-      <div className="event-list">
+      <div className="event-list" ref={listRef}>
         {events === null && <div className="empty">{t("detail.loading")}</div>}
         {events && events.length === 0 && <div className="empty">{t("detail.empty")}</div>}
-        {(() => {
-          // Same per-session model thread as ActivityView so each event in
-          // the detail view shows the model active at the time. Detail is
-          // single-session, but codex can switch models mid-session.
-          let active: string | null = null;
-          return events?.map((ev, i) => {
-            if (ev.usage?.model) active = ev.usage.model;
-            else if (ev.kind.type === "session_start" && ev.kind.model && !active)
-              active = ev.kind.model;
-            return <EventRow key={i} ev={ev} model={active} />;
-          });
-        })()}
+        {rows.slice(0, visibleCount).map(({ ev, model, origIndex, showDay, dayLabel }) => (
+          <Fragment key={origIndex}>
+            {showDay && (
+              <div className="event-day-sep">
+                <span className="event-day-label">{dayLabel}</span>
+              </div>
+            )}
+            <EventRow ev={ev} model={model} />
+          </Fragment>
+        ))}
+        {visibleCount < rows.length && (
+          <div ref={sentinelRef} className="event-list-sentinel" aria-hidden />
+        )}
       </div>
     </>
   );

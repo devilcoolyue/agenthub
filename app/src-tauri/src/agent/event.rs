@@ -8,6 +8,7 @@ use serde_json::Value;
 pub enum Agent {
     ClaudeCode,
     Codex,
+    Cursor,
 }
 
 impl Agent {
@@ -15,6 +16,7 @@ impl Agent {
         match self {
             Agent::ClaudeCode => "claude-code",
             Agent::Codex => "codex",
+            Agent::Cursor => "cursor",
         }
     }
 }

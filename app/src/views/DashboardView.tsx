@@ -4,6 +4,7 @@ import { useSettings } from "../settings";
 import { type Thresholds, cwdLabel, livenessOf, shortenCwd } from "../utils";
 import claudeIcon from "../assets/claude.svg";
 import codexIcon from "../assets/codex.svg";
+import cursorIcon from "../assets/cursor.svg";
 import { OverviewBand } from "../components/OverviewBand";
 import "./DashboardView.css";
 
@@ -49,13 +50,16 @@ interface ToolStat {
   lastTs: number;
   byClaude: boolean;      // any invocation came from claude-code
   byCodex: boolean;       // any invocation came from codex
+  byCursor: boolean;      // any invocation came from cursor
 }
 
-type ToolOwner = "claude" | "codex" | "shared";
+type ToolOwner = "claude" | "codex" | "cursor" | "shared";
 
 function ownerOf(t: ToolStat): ToolOwner {
-  if (t.byClaude && t.byCodex) return "shared";
+  const agents = (t.byClaude ? 1 : 0) + (t.byCodex ? 1 : 0) + (t.byCursor ? 1 : 0);
+  if (agents > 1) return "shared";
   if (t.byCodex) return "codex";
+  if (t.byCursor) return "cursor";
   return "claude";
 }
 
@@ -90,6 +94,7 @@ function derivePods(
   const perAgent: Record<Agent, AgentVitals> = {
     "claude-code": { liveCount: 0, eventsLast5s: 0 },
     codex: { liveCount: 0, eventsLast5s: 0 },
+    cursor: { liveCount: 0, eventsLast5s: 0 },
   };
   const toolMap = new Map<string, ToolStat>();
 
@@ -125,12 +130,13 @@ function derivePods(
 
       const ts2 =
         toolMap.get(name) ??
-        { name, count: 0, risky: false, lastTs: 0, byClaude: false, byCodex: false };
+        { name, count: 0, risky: false, lastTs: 0, byClaude: false, byCodex: false, byCursor: false };
       ts2.count++;
       ts2.risky = ts2.risky || risky;
       ts2.lastTs = Math.max(ts2.lastTs, ts);
       if (ev.agent === "claude-code") ts2.byClaude = true;
       else if (ev.agent === "codex") ts2.byCodex = true;
+      else if (ev.agent === "cursor") ts2.byCursor = true;
       toolMap.set(name, ts2);
     } else if (ev.kind.type === "tool_result") {
       acc.pending = null;
@@ -171,10 +177,23 @@ function derivePods(
     (a, b) => b.lastTs - a.lastTs,
   );
   const homes = allHomes.slice(0, MAX_HOMES);
-  const allTools = Array.from(toolMap.values()).sort((a, b) => {
-    if (b.count !== a.count) return b.count - a.count;
-    return b.lastTs - a.lastTs;
-  });
+
+  // Only surface benches for terminal types that have an active session right
+  // now (live or recent — the same "活跃会话" set as the stage pods). When
+  // claude-code is the only active agent, codex/cursor tools stay off the
+  // bench instead of cluttering it with calls from idle sessions.
+  const activeAgents = new Set<Agent>(pods.map((p) => p.agent));
+  const allTools = Array.from(toolMap.values())
+    .filter(
+      (tl) =>
+        (tl.byClaude && activeAgents.has("claude-code")) ||
+        (tl.byCodex && activeAgents.has("codex")) ||
+        (tl.byCursor && activeAgents.has("cursor")),
+    )
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return b.lastTs - a.lastTs;
+    });
   const tools = allTools.slice(0, MAX_TOOLS);
 
   return {
@@ -191,6 +210,7 @@ function derivePods(
 const AGENT_ICON: Record<Agent, string> = {
   "claude-code": claudeIcon,
   codex: codexIcon,
+  cursor: cursorIcon,
 };
 
 // Stage geometry — keep in sync with --row-h / --sprite-r in App.css.
@@ -497,7 +517,7 @@ function ToolRow({ t, active }: { t: ToolStat; active: boolean }) {
     <div
       className={`tool-row ${t.risky ? "risky" : ""} ${active ? "active" : ""} ${reacting ? "reacting" : ""}`}
       data-owner={owner}
-      title={`${t.name} · used by ${owner === "shared" ? "claude-code + codex" : owner === "codex" ? "codex" : "claude-code"}`}
+      title={`${t.name} · used by ${[t.byClaude && "claude-code", t.byCodex && "codex", t.byCursor && "cursor"].filter(Boolean).join(" + ")}`}
     >
       <span className="tool-row-flash" aria-hidden />
       <span className="tool-vendor">
@@ -509,6 +529,11 @@ function ToolRow({ t, active }: { t: ToolStat; active: boolean }) {
         {t.byCodex && (
           <span className="vendor-dot vendor-codex">
             <img src={codexIcon} alt="codex" draggable={false} />
+          </span>
+        )}
+        {t.byCursor && (
+          <span className="vendor-dot vendor-cursor">
+            <img src={cursorIcon} alt="cursor" draggable={false} />
           </span>
         )}
       </span>

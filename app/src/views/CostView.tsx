@@ -7,11 +7,15 @@ import { useSettings } from "../settings";
 import { useAnimatedNumber } from "../hooks";
 import claudeIcon from "../assets/claude.svg";
 import codexIcon from "../assets/codex.svg";
+import cursorIcon from "../assets/cursor.svg";
 import "./CostView.css";
 
+// Cursor bills server-side (no local token/cost data), so it never appears in
+// the cost charts — but the icon map must stay total over `Agent`.
 const AGENT_ICON: Record<Agent, string> = {
   "claude-code": claudeIcon,
   codex: codexIcon,
+  cursor: cursorIcon,
 };
 
 function AnimatedUSD({
